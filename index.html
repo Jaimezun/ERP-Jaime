@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERP — Iniciar sesión</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f0;color:#1a1a1a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-card{background:#fff;border-radius:16px;border:1px solid #e0e0d8;padding:40px;width:100%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,0.08)}
+.logo{text-align:center;margin-bottom:32px}
+.logo h1{font-size:22px;font-weight:700;color:#1a1a1a}
+.logo p{font-size:13px;color:#888;margin-top:4px}
+.field{margin-bottom:16px}
+label{font-size:12px;color:#666;display:block;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em}
+input{width:100%;padding:10px 14px;border:1px solid #ccc;border-radius:8px;background:#fff;color:#1a1a1a;font-size:15px;font-family:inherit;outline:none;transition:border-color 0.15s}
+input:focus{border-color:#1a1a1a}
+.btn{width:100%;padding:12px;border-radius:8px;border:none;background:#1a1a1a;color:#fff;font-size:15px;font-family:inherit;font-weight:600;cursor:pointer;margin-top:8px;transition:background 0.15s}
+.btn:hover{background:#333}
+.alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;background:#fde8e8;color:#c0392b;border:1px solid #f0a0a0;display:none}
+.divider{border:none;border-top:1px solid #e0e0d8;margin:24px 0}
+/* Selector de módulo */
+.module-select{display:none}
+.module-select h3{font-size:16px;font-weight:600;text-align:center;margin-bottom:20px;color:#1a1a1a}
+.module-btn{display:flex;align-items:center;gap:14px;width:100%;padding:16px 20px;border-radius:10px;border:1px solid #e0e0d8;background:#f8f8f4;cursor:pointer;margin-bottom:12px;text-align:left;font-family:inherit;transition:all 0.15s}
+.module-btn:hover{border-color:#1a1a1a;background:#fff}
+.module-btn .icon{width:40px;height:40px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.module-btn .icon.admin{background:#e8f0fe}
+.module-btn .icon.prod{background:#1a1a1a}
+.module-btn .title{font-size:14px;font-weight:600;color:#1a1a1a;display:block}
+.module-btn .desc{font-size:12px;color:#888;margin-top:2px;display:block}
+.back-link{text-align:center;margin-top:16px;font-size:13px;color:#888;cursor:pointer;text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="login-card">
+  <div class="logo">
+    <h1>ERP Producción</h1>
+    <p>Módulo de reciclaje y planeación</p>
+  </div>
+
+  <!-- LOGIN FORM -->
+  <div id="login-form">
+    <div id="alert-msg" class="alert"></div>
+    <div class="field">
+      <label>Usuario</label>
+      <input type="text" id="username" placeholder="Tu usuario" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Contraseña</label>
+      <input type="password" id="password" placeholder="Tu contraseña" autocomplete="current-password">
+    </div>
+    <button class="btn" onclick="login()">Iniciar sesión</button>
+    <div class="divider"></div>
+    <p style="font-size:12px;color:#aaa;text-align:center">Admin / Operador → ERP · Cliente → Portal</p>
+  </div>
+
+  <!-- SELECTOR DE MÓDULO (solo para admin/operador) -->
+  <div id="module-select" class="module-select">
+    <h3>¿A dónde quieres ir?</h3>
+    <button class="module-btn" onclick="goTo('erp.html')">
+      <div class="icon admin">📊</div>
+      <div>
+        <span class="title">Administrativo</span>
+        <span class="desc">Costeo, planeación, clientes, propuestas</span>
+      </div>
+    </button>
+    <button class="module-btn" onclick="goTo('produccion.html')">
+      <div class="icon prod">⚙️</div>
+      <div>
+        <span class="title" style="color:#fff;filter:invert(0)">Producción</span>
+        <span class="desc">EOL, ARS, inventario, sales orders</span>
+      </div>
+    </button>
+    <div class="back-link" onclick="volverLogin()">← Cerrar sesión</div>
+  </div>
+</div>
+
+<script>
+const DEFAULT_USERS=[
+  {username:'admin',password:'admin123',role:'admin',nombre:'Administrador'},
+  {username:'operador',password:'op123',role:'operador',nombre:'Operador'}
+];
+
+function getState(){try{const r=localStorage.getItem('erp_state');return r?JSON.parse(r):null;}catch(e){return null;}}
+
+function login(){
+  const username=document.getElementById('username').value.trim();
+  const password=document.getElementById('password').value;
+  document.getElementById('alert-msg').style.display='none';
+  if(!username||!password){showAlert('Ingresa usuario y contraseña.');return;}
+
+  // Usuarios internos
+  const interno=DEFAULT_USERS.find(u=>u.username===username&&u.password===password);
+  if(interno){
+    localStorage.setItem('erp_session',JSON.stringify(interno));
+    // Show module selector
+    document.getElementById('login-form').style.display='none';
+    document.getElementById('module-select').style.display='block';
+    return;
+  }
+
+  // Clientes
+  const st=getState();
+  if(st&&st.clientes){
+    const cliente=st.clientes.find(c=>c.usuario===username&&c.password===password);
+    if(cliente){
+      localStorage.setItem('erp_session',JSON.stringify({username:cliente.usuario,nombre:cliente.nombre,role:'cliente',clienteId:cliente.id}));
+      window.location.href='portal.html';return;
+    }
+  }
+  showAlert('Usuario o contraseña incorrectos.');
+}
+
+function goTo(url){window.location.href=url;}
+
+function volverLogin(){
+  localStorage.removeItem('erp_session');
+  document.getElementById('login-form').style.display='block';
+  document.getElementById('module-select').style.display='none';
+  document.getElementById('username').value='';
+  document.getElementById('password').value='';
+}
+
+function showAlert(msg){const el=document.getElementById('alert-msg');el.textContent=msg;el.style.display='block';}
+
+// Si ya hay sesión, mostrar selector directamente
+window.addEventListener('DOMContentLoaded',function(){
+  const sess=localStorage.getItem('erp_session');
+  if(sess){
+    const s=JSON.parse(sess);
+    if(s.role==='cliente'){window.location.href='portal.html';return;}
+    document.getElementById('login-form').style.display='none';
+    document.getElementById('module-select').style.display='block';
+  }
+});
+
+document.addEventListener('keydown',function(e){
+  if(e.key==='Enter'&&document.getElementById('login-form').style.display!=='none')login();
+});
+</script>
+</body>
+</html>

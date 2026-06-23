@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portal del Cliente</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f8f4;color:#1a1a1a;font-size:14px}
+.topbar{display:flex;align-items:center;gap:12px;padding:14px 24px;background:#fff;border-bottom:1px solid #d0e8d8;position:sticky;top:0;z-index:50}
+.topbar .logo{font-size:16px;font-weight:700;color:#1a7a3c;flex:1}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;border:1px solid #ccc;background:#fff;color:#1a1a1a;cursor:pointer;font-size:13px;font-family:inherit;font-weight:500}
+.btn:hover{background:#f5f5f0}
+.btn.small{padding:4px 10px;font-size:12px}
+.content{max-width:1000px;margin:0 auto;padding:28px 24px}
+h2{font-size:20px;font-weight:700;margin-bottom:6px}
+.subtitle{font-size:14px;color:#666;margin-bottom:28px}
+.section-title{font-size:16px;font-weight:700;margin-bottom:14px;color:#1a1a1a}
+.card{background:#fff;border-radius:10px;padding:20px;margin-bottom:20px;border:1px solid #d0e8d8}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 12px;border-bottom:1px solid #e0e0d8;color:#666;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:0.03em}
+td{padding:9px 12px;border-bottom:1px solid #f0f8f4;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.badge.success{background:#e8f8ed;color:#1a7a3c}
+.badge.warning{background:#fef8e8;color:#a05a00}
+.badge.neutral{background:#f0f0ea;color:#666;border:1px solid #ddd}
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:28px}
+.metric{background:#fff;border-radius:10px;padding:16px;border:1px solid #d0e8d8}
+.metric .label{font-size:11px;color:#888;margin-bottom:6px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em}
+.metric .value{font-size:24px;font-weight:700}
+.metric .unit{font-size:12px;color:#888;margin-top:2px}
+.green-card{background:linear-gradient(135deg,#e8f8ed,#d0f0dc);border:1px solid #a0d8b0}
+.green-card .label{color:#1a7a3c}
+.green-card .value{color:#1a7a3c}
+.huella-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px}
+.huella-item{background:#fff;border-radius:10px;padding:16px;border:1px solid #d0e8d8;text-align:center}
+.huella-item .icon{font-size:28px;margin-bottom:8px}
+.huella-item .val{font-size:22px;font-weight:700;color:#1a7a3c}
+.huella-item .lbl{font-size:12px;color:#666;margin-top:4px}
+.huella-item .equiv{font-size:11px;color:#888;margin-top:6px;padding-top:6px;border-top:1px solid #e0e0d8}
+.lote-card{background:#fff;border:1px solid #d0e8d8;border-radius:10px;padding:18px;margin-bottom:14px}
+.lote-header{display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.lote-title{font-size:15px;font-weight:700;flex:1}
+.lote-date{font-size:12px;color:#888}
+.lote-huella{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:12px}
+.lote-ubicacion{font-size:12px;color:#555;background:#f0f8f4;border:1px solid #d0e8d8;border-radius:6px;padding:8px 12px;margin-bottom:12px}
+.lote-ubicacion strong{color:#1a7a3c}
+.lote-h-item{background:#f0f8f4;border-radius:8px;padding:10px;text-align:center}
+.lote-h-item .v{font-size:16px;font-weight:700;color:#1a7a3c}
+.lote-h-item .l{font-size:10px;color:#666;margin-top:2px}
+.empty{text-align:center;padding:48px;color:#888;font-size:14px}
+.tabs{display:flex;gap:0;margin-bottom:20px;border-bottom:2px solid #d0e8d8}
+.tab{padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;color:#888;margin-bottom:-2px;font-family:inherit;background:transparent;border-top:none;border-left:none;border-right:none;font-weight:500}
+.tab.active{color:#1a7a3c;border-bottom-color:#1a7a3c}
+.sec{display:none}.sec.active{display:block}
+.dest-reventa{background:#e8f8ed;color:#1a7a3c;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.dest-scrap{background:#fde8e8;color:#c0392b;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo">Portal Ambiental</div>
+  <span style="font-size:14px;font-weight:500;color:#444" id="cliente-name"></span>
+  <button class="btn small" onclick="logout()">Cerrar sesión</button>
+</div>
+<div class="content">
+  <h2 id="portal-title">Mi reporte ambiental</h2>
+  <p class="subtitle">Lotes finalizados, activos recuperados y huella ambiental</p>
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('tab-ambiental')">Impacto ambiental</button>
+    <button class="tab" onclick="showTab('tab-assets')">Activos recuperados</button>
+  </div>
+
+  <!-- AMBIENTAL -->
+  <div id="tab-ambiental" class="sec active">
+    <div class="section-title">Acumulado total</div>
+    <div id="acumulado-huella" class="huella-grid"></div>
+    <div class="metric-grid" id="acumulado-metricas"></div>
+    <div class="section-title">Lotes finalizados</div>
+    <div id="lotes-portal"></div>
+  </div>
+
+  <!-- ASSETS -->
+  <div id="tab-assets" class="sec">
+    <div class="section-title">Activos recuperados</div>
+    <div id="assets-metrics" class="metric-grid"></div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <table>
+        <thead><tr><th>Asset #</th><th># Cliente</th><th>Lote</th><th>Categoría</th><th>Marca / Modelo</th><th>Serial</th><th>Grado</th><th>Destino</th></tr></thead>
+        <tbody id="assets-portal-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+function checkAuth(){
+  const s=localStorage.getItem('erp_session');
+  if(!s){window.location.href='index.html';return null;}
+  const sess=JSON.parse(s);
+  if(sess.role!=='cliente'){window.location.href='index.html';return null;}
+  return sess;
+}
+function logout(){localStorage.removeItem('erp_session');window.location.href='index.html';}
+function getState(){try{return JSON.parse(localStorage.getItem('erp_state')||'{}');}catch(e){return{};}}
+function getProdState(){try{return JSON.parse(localStorage.getItem('erp_prod_state')||'{}');}catch(e){return{};}}
+function showTab(id){
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function calcHuella(loteId,st){
+  const cierre=st.cierres&&st.cierres[loteId];if(!cierre)return null;
+  let kwh=0,co2=0,agua=0,petroleo=0,kgTotal=0,piezasTotal=0;
+  cierre.items.forEach(it=>{
+    const cat=(st.catalogoCierre||[]).find(x=>x.id===it.catId);if(!cat)return;
+    kgTotal+=it.kg;piezasTotal+=it.piezas||0;
+    (cat.commodities||[]).forEach(cc=>{
+      const cm=(st.commoditiesCierre||[]).find(x=>x.id===cc.id);if(!cm)return;
+      const kgCC=it.kg*cc.pct/100;
+      kwh+=cm.kwh*kgCC;co2+=cm.co2*kgCC;agua+=cm.agua*kgCC;petroleo+=cm.petroleo*kgCC;
+    });
+  });
+  return{kwh,co2,agua,petroleo,kgTotal,piezasTotal};
+}
+function fmt(n){return n>=1000?`${(n/1000).toFixed(1)}k`:n.toFixed(1);}
+
+// Resuelve la ubicación de recibo del lote a un string legible
+function resolverUbicacion(lote,cliente){
+  if(!lote)return'';
+  const ubicId=lote.ubicacionId;
+  if(!ubicId||ubicId==='planta')return'El cliente entregó en planta';
+  if(!cliente||!Array.isArray(cliente.ubicaciones))return'(ubicación no disponible)';
+  const u=cliente.ubicaciones.find(x=>x.id===ubicId);
+  if(!u)return'(ubicación no disponible)';
+  const partes=[u.nombre];
+  if(u.ciudad)partes.push(u.ciudad);
+  return partes.join(' — ');
+}
+
+function renderPortal(){
+  const sess=checkAuth();if(!sess)return;
+  document.getElementById('cliente-name').textContent=sess.nombre;
+  const st=getState();const pst=getProdState();
+  const cliente=(st.clientes||[]).find(c=>c.id===sess.clienteId);
+  if(cliente)document.getElementById('portal-title').textContent=`Reporte — ${cliente.nombre}`;
+
+  const lotes=(st.lotes||[]).filter(l=>l.clienteId===sess.clienteId&&l.finalizado);
+
+  // ── AMBIENTAL ──
+  if(!lotes.length){
+    document.getElementById('acumulado-huella').innerHTML='';
+    document.getElementById('acumulado-metricas').innerHTML='';
+    document.getElementById('lotes-portal').innerHTML='<div class="empty">Sin lotes finalizados.</div>';
+  } else {
+    let totKwh=0,totCo2=0,totAgua=0,totPetroleo=0,totKg=0,totPiezas=0;
+    lotes.forEach(l=>{const h=calcHuella(l.id,st);if(!h)return;totKwh+=h.kwh;totCo2+=h.co2;totAgua+=h.agua;totPetroleo+=h.petroleo;totKg+=h.kgTotal;totPiezas+=h.piezasTotal;});
+    document.getElementById('acumulado-huella').innerHTML=`
+      <div class="huella-item"><div class="icon">⚡</div><div class="val">${fmt(totKwh)}</div><div class="lbl">kWh ahorrados</div><div class="equiv">${Math.round(totKwh/3000)} hogares por 1 mes</div></div>
+      <div class="huella-item"><div class="icon">🌿</div><div class="val">${fmt(totCo2)}</div><div class="lbl">kg CO₂ evitados</div><div class="equiv">${Math.round(totCo2/21)} árboles plantados</div></div>
+      <div class="huella-item"><div class="icon">💧</div><div class="val">${fmt(totAgua)}</div><div class="lbl">Litros agua ahorrados</div><div class="equiv">${Math.round(totAgua/50)} duchas de 5 min</div></div>
+      <div class="huella-item"><div class="icon">🛢️</div><div class="val">${fmt(totPetroleo)}</div><div class="lbl">Litros petróleo ahorrados</div><div class="equiv">${Math.round(totPetroleo/40)} tanques de auto</div></div>`;
+    document.getElementById('acumulado-metricas').innerHTML=`
+      <div class="metric green-card"><div class="label">Lotes finalizados</div><div class="value">${lotes.length}</div></div>
+      <div class="metric green-card"><div class="label">Kg reciclados</div><div class="value">${fmt(totKg)}</div><div class="unit">kilogramos</div></div>`;
+
+    // Individual lotes
+    const lotesHtml=lotes.map(l=>{
+      const cierre=st.cierres&&st.cierres[l.id];
+      const recibo=(st.recibos||{})[l.id];
+      const h=calcHuella(l.id,st);
+      const itemRows=cierre?cierre.items.map(it=>{const cat=(st.catalogoCierre||[]).find(x=>x.id===it.catId);return`<tr><td>${cat?cat.nombre:it.catId}</td><td>${it.piezas||0}</td><td>${it.kg.toFixed(2)} kg</td></tr>`;}).join(''):'';
+      const huellaHtml=h?`<div class="lote-huella">
+        <div class="lote-h-item"><div class="v">${fmt(h.kwh)}</div><div class="l">kWh ahorrados</div></div>
+        <div class="lote-h-item"><div class="v">${fmt(h.co2)}</div><div class="l">kg CO₂ evitados</div></div>
+        <div class="lote-h-item"><div class="v">${fmt(h.agua)}</div><div class="l">L agua</div></div>
+        <div class="lote-h-item"><div class="v">${fmt(h.petroleo)}</div><div class="l">L petróleo</div></div>
+        <div class="lote-h-item"><div class="v">${h.kgTotal.toFixed(1)}</div><div class="l">kg reciclados</div></div>
+      </div>`:'';
+      const ubicacionStr=resolverUbicacion(l,cliente);
+      const fechaRecibo=recibo&&recibo.fechaRecibo?recibo.fechaRecibo:null;
+      const ubicacionInfo=`<div class="lote-ubicacion">📍 <strong>Recibido en:</strong> ${ubicacionStr}${fechaRecibo?` <span style="color:#888">· ${fechaRecibo}</span>`:''}</div>`;
+      return`<div class="lote-card">
+        <div class="lote-header"><div class="lote-title">${l.nombre}</div><span class="badge success">Finalizado</span><span class="lote-date">${cierre?cierre.fechaCierre:l.deadline||''}</span></div>
+        ${ubicacionInfo}
+        ${itemRows?`<table><thead><tr><th>Categoría</th><th>Piezas</th><th>Kg procesados</th></tr></thead><tbody>${itemRows}</tbody></table>`:''}
+        ${huellaHtml}
+      </div>`;
+    }).join('');
+    document.getElementById('lotes-portal').innerHTML=lotesHtml||'<div class="empty">Sin lotes con datos de cierre.</div>';
+  }
+
+  // ── ASSETS ──
+  const loteIds=lotes.map(l=>l.id);
+  const assets=(pst.assets||[]).filter(a=>loteIds.includes(a.loteId));
+  const cats=st.categorias||[];
+  const total=assets.length;
+  const reventa=assets.filter(a=>a.destino==='Reventa').length;
+  const scrap=assets.filter(a=>a.destino==='Scrap').length;
+  document.getElementById('assets-metrics').innerHTML=`
+    <div class="metric green-card"><div class="label">Activos totales</div><div class="value">${total}</div></div>
+    <div class="metric green-card"><div class="label">Reventa</div><div class="value">${reventa}</div></div>
+    <div class="metric green-card"><div class="label">Scrap</div><div class="value">${scrap}</div></div>`;
+
+  const tb=document.getElementById('assets-portal-table');
+  if(!assets.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:32px;color:#888">Sin activos registrados aún.</td></tr>';return;}
+  tb.innerHTML=assets.map(a=>{
+    const cat=cats.find(x=>x.id===a.catId);
+    const lote=(st.lotes||[]).find(x=>x.id===a.loteId);
+    const destEl=a.destino==='Reventa'?'<span class="dest-reventa">Reventa</span>':'<span class="dest-scrap">Scrap</span>';
+    return`<tr>
+      <td><strong>A-${String(a.num).padStart(7,'0')}</strong></td>
+      <td>${a.assetCliente||'—'}</td>
+      <td>${lote?lote.nombre:'—'}</td>
+      <td>${cat?cat.nombre:'—'}</td>
+      <td>${a.marca} ${a.modelo}</td>
+      <td><code style="font-size:11px">${a.serial||'—'}</code></td>
+      <td>${a.grado||'—'}</td>
+      <td>${destEl}</td>
+    </tr>`;
+  }).join('');
+}
+
+renderPortal();
+
+// Sincronización entre pestañas: si el admin/producción cambian los datos
+// mientras el cliente tiene el portal abierto, se refresca. Si se cierra sesión
+// en otra pestaña, también se cierra aquí. El portal es solo lectura: no escribe.
+window.addEventListener('storage',function(e){
+  if(!e.key)return;
+  if(e.key==='erp_session'){ if(!e.newValue)window.location.href='index.html'; return; }
+  if(e.key==='erp_state'||e.key==='erp_prod_state')renderPortal();
+});
+</script>
+</body>
+</html>

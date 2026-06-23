@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contabilidad MX — ERP Reciclaje</title>
+<style>
+:root{
+  --bg:#f3f2f1;--surface:#ffffff;--surface-2:#faf9f8;--ink:#201f1e;--ink-2:#605e5c;--ink-3:#8a8886;
+  --line:#e1dfdd;--line-2:#edebe9;--accent:#1a56db;--accent-2:#0f3fae;--accent-soft:#eff3fc;
+  --green:#107c41;--green-soft:#e6f3ec;--red:#a4262c;--red-soft:#fdeceb;--amber:#8a6d00;--amber-soft:#fdf6e3;
+  --rail:#1b2a4e;--rail-ink:#cdd6e8;--rail-ink-active:#ffffff;--shadow:0 1.6px 3.6px rgba(0,0,0,.08),0 .3px .9px rgba(0,0,0,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:'Segoe UI','Segoe UI Web',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--ink);font-size:13px;line-height:1.4;-webkit-font-smoothing:antialiased}
+.tabular{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+.app{display:grid;grid-template-columns:48px 1fr;grid-template-rows:44px 1fr;height:100vh;overflow:hidden}
+.app.rail-open{grid-template-columns:228px 1fr}
+/* TOP BAR */
+.appbar{grid-column:1/3;display:flex;align-items:center;gap:14px;background:var(--rail);color:#fff;padding:0 14px;z-index:30}
+.appbar .burger{background:transparent;border:0;color:#fff;font-size:16px;cursor:pointer;padding:6px 8px;border-radius:3px}
+.appbar .burger:hover{background:rgba(255,255,255,.12)}
+.appbar .brand{font-size:14px;font-weight:600;letter-spacing:.2px}
+.appbar .brand small{font-weight:400;color:var(--rail-ink);margin-left:6px;font-size:12px}
+.appbar .spacer{flex:1}
+.appbar .env{font-size:11px;color:var(--rail-ink);border:1px solid rgba(255,255,255,.25);padding:2px 8px;border-radius:10px}
+.appbar .who{font-size:12px;color:var(--rail-ink)}
+.appbar a.link,.appbar button.link{color:#fff;background:transparent;border:0;font:inherit;font-size:12px;cursor:pointer;text-decoration:none;padding:6px 8px;border-radius:3px}
+.appbar a.link:hover,.appbar button.link:hover{background:rgba(255,255,255,.12)}
+/* RAIL */
+.rail{background:var(--rail);color:var(--rail-ink);overflow-y:auto;overflow-x:hidden;padding-top:6px}
+.rail .grp{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#7d8db3;padding:14px 16px 6px}
+.app:not(.rail-open) .rail .grp{display:none}
+.rail button{display:flex;align-items:center;gap:12px;width:100%;background:transparent;border:0;color:var(--rail-ink);font:inherit;font-size:13px;text-align:left;padding:9px 14px;cursor:pointer;white-space:nowrap;border-left:3px solid transparent}
+.rail button .ic{width:18px;text-align:center;flex-shrink:0;font-size:14px;opacity:.92}
+.app:not(.rail-open) .rail button .lbl{display:none}
+.rail button:hover{background:rgba(255,255,255,.07);color:#fff}
+.rail button.active{background:rgba(255,255,255,.12);color:var(--rail-ink-active);border-left-color:var(--accent);font-weight:600}
+/* WORK AREA */
+.work{overflow:hidden;display:flex;flex-direction:column;background:var(--bg)}
+.cmdbar{display:flex;align-items:center;gap:2px;background:var(--surface);border-bottom:1px solid var(--line);padding:7px 18px;flex-wrap:wrap}
+.cmdbar h1{font-size:18px;font-weight:600;margin-right:18px}
+.cmdbar .sub{color:var(--ink-3);font-size:12px;margin-left:-12px;margin-right:14px}
+.cmdbar .grow{flex:1}
+.scroll{overflow-y:auto;padding:18px 22px 60px;flex:1}
+.page{display:none}.page.active{display:block}
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:2px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn:hover{background:var(--surface-2);border-color:#c8c6c4}
+.btn .ic{font-size:13px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent-2);border-color:var(--accent-2)}
+.btn.subtle{border-color:transparent;background:transparent}
+.btn.subtle:hover{background:var(--line-2)}
+.btn.danger{color:var(--red);border-color:#e8c5c5}
+.btn.danger:hover{background:var(--red-soft)}
+.btn.sm{height:25px;padding:0 9px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.cmdsep{width:1px;height:20px;background:var(--line);margin:0 6px}
+/* CARDS / TILES */
+.cues{display:grid;grid-template-columns:repeat(auto-fill,minmax(176px,1fr));gap:12px;margin-bottom:20px}
+.cue{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:14px 16px;box-shadow:var(--shadow);cursor:pointer;transition:transform .08s}
+.cue:hover{transform:translateY(-1px);border-color:#c8c6c4}
+.cue .k{font-size:11.5px;color:var(--ink-2);margin-bottom:8px;font-weight:600}
+.cue .v{font-size:27px;font-weight:600;letter-spacing:-.5px}
+.cue .v.tabular{font-size:24px}
+.cue .d{font-size:11px;color:var(--ink-3);margin-top:5px}
+.cue.good{border-left:3px solid var(--green)}.cue.bad{border-left:3px solid var(--red)}
+.cue.warn{border-left:3px solid var(--amber)}.cue.info{border-left:3px solid var(--accent)}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:3px;box-shadow:var(--shadow);margin-bottom:18px}
+.panel>.hd{display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--line-2)}
+.panel>.hd h3{font-size:14px;font-weight:600;flex:1}
+.panel>.bd{padding:16px}
+.panel>.bd.flush{padding:0}
+.grid2{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+@media(max-width:1100px){.grid2{grid-template-columns:1fr}}
+/* TABLES */
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+thead th{position:sticky;top:0;background:var(--surface-2);text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);color:var(--ink-2);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;z-index:1}
+tbody td{padding:7px 12px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+tbody tr:hover td{background:var(--accent-soft)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.total td{font-weight:700;background:var(--surface-2);border-top:2px solid var(--line)}
+tr.sub td{font-weight:600;background:var(--surface-2)}
+.tree-toggle{cursor:pointer;user-select:none;display:inline-block;width:14px;color:var(--ink-3)}
+.lvl-1{font-weight:700}.lvl-2{font-weight:600}.lvl-3{font-weight:400}.lvl-4{color:var(--ink-2)}
+.muted{color:var(--ink-3)}.mono{font-family:'Cascadia Mono','Consolas',monospace;font-size:12px}
+/* BADGES */
+.bdg{display:inline-block;padding:2px 8px;border-radius:2px;font-size:11px;font-weight:600;border:1px solid transparent}
+.bdg.g{background:var(--green-soft);color:var(--green)}
+.bdg.r{background:var(--red-soft);color:var(--red)}
+.bdg.a{background:var(--amber-soft);color:var(--amber)}
+.bdg.b{background:var(--accent-soft);color:var(--accent)}
+.bdg.n{background:var(--line-2);color:var(--ink-2);border-color:var(--line)}
+/* FORM */
+label{display:block;font-size:11.5px;color:var(--ink-2);margin-bottom:4px;font-weight:600}
+input,select,textarea{width:100%;height:30px;padding:0 9px;border:1px solid #c8c6c4;border-radius:2px;background:#fff;color:var(--ink);font:inherit;font-size:13px;outline:none}
+textarea{height:auto;padding:7px 9px;resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+input[readonly]{background:var(--surface-2);color:var(--ink-2)}
+.fld{margin-bottom:12px}
+.frow{display:flex;gap:12px;flex-wrap:wrap}.frow>.fld{flex:1;min-width:150px}
+.hint{font-size:11px;color:var(--ink-3);margin-top:4px}
+/* MODAL */
+.ovl{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:flex-start;justify-content:center;z-index:200;padding:36px 16px;overflow-y:auto}
+.ovl.show{display:flex}
+.dlg{background:#fff;border-radius:4px;width:100%;max-width:760px;box-shadow:0 12px 40px rgba(0,0,0,.25);animation:pop .12s ease-out}
+.dlg.wide{max-width:1000px}
+@keyframes pop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.dlg .dh{display:flex;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line)}
+.dlg .dh h3{font-size:16px;font-weight:600;flex:1}
+.dlg .dh .x{background:transparent;border:0;font-size:18px;cursor:pointer;color:var(--ink-2);width:28px;height:28px;border-radius:2px}
+.dlg .dh .x:hover{background:var(--line-2)}
+.dlg .db{padding:20px;max-height:64vh;overflow-y:auto}
+.dlg .df{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--line);background:var(--surface-2)}
+/* MISC */
+.note{padding:10px 14px;border-radius:3px;font-size:12.5px;margin-bottom:14px;border:1px solid}
+.note.i{background:var(--accent-soft);border-color:#bcd0f5;color:var(--accent-2)}
+.note.w{background:var(--amber-soft);border-color:#ecdca0;color:var(--amber)}
+.note.g{background:var(--green-soft);border-color:#a9d8bd;color:var(--green)}
+.note.r{background:var(--red-soft);border-color:#e6b8b8;color:var(--red)}
+.empty{text-align:center;color:var(--ink-3);padding:48px 16px;font-size:13px}
+.kpi-row{display:flex;gap:0;border:1px solid var(--line);border-radius:3px;overflow:hidden;background:#fff;margin-bottom:18px}
+.kpi-row .kpi{flex:1;padding:13px 16px;border-right:1px solid var(--line-2)}
+.kpi-row .kpi:last-child{border-right:0}
+.kpi .kk{font-size:11px;color:var(--ink-2);font-weight:600;margin-bottom:5px}
+.kpi .kv{font-size:19px;font-weight:600;font-variant-numeric:tabular-nums}
+.pos{color:var(--green)}.neg{color:var(--red)}
+.searchwrap{position:relative;max-width:300px}
+.searchwrap input{padding-left:30px}
+.searchwrap::before{content:"⌕";position:absolute;left:9px;top:5px;color:var(--ink-3);font-size:15px}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:16px}
+.tabs button{background:transparent;border:0;border-bottom:2px solid transparent;padding:9px 16px;font:inherit;font-size:13px;color:var(--ink-2);cursor:pointer;margin-bottom:-1px}
+.tabs button.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.sec{display:none}.sec.active{display:block}
+.movrow input,.movrow select{height:28px}
+.balchk{font-size:13px;font-weight:600;padding:8px 14px;border-radius:3px;display:inline-flex;gap:14px;align-items:center}
+.balchk.ok{background:var(--green-soft);color:var(--green)}
+.balchk.bad{background:var(--red-soft);color:var(--red)}
+code.xml{display:block;background:#1b1f23;color:#d6deeb;padding:14px;border-radius:3px;font-family:'Cascadia Mono',Consolas,monospace;font-size:11.5px;white-space:pre;overflow:auto;max-height:340px;line-height:1.5}
+.taskitem{display:flex;align-items:center;gap:12px;padding:10px 14px;border:1px solid var(--line-2);border-radius:3px;margin-bottom:8px;background:#fff}
+.taskitem .ti-main{flex:1}.taskitem .ti-t{font-weight:600;font-size:13px}.taskitem .ti-s{font-size:11.5px;color:var(--ink-3)}
+.legalbar{font-size:11px;color:var(--ink-3);border-top:1px solid var(--line);padding:8px 22px;background:var(--surface)}
+</style>
+</head>
+<body>
+<div class="app rail-open" id="app">
+  <div class="appbar">
+    <button class="burger" id="burger" title="Menú">☰</button>
+    <div class="brand">Contabilidad MX <small id="razon-top">— configurar empresa</small></div>
+    <span class="spacer"></span>
+    <span class="env" id="periodo-top">Ejercicio —</span>
+    <a class="link" href="erp.html">ERP Admin</a>
+    <a class="link" href="produccion.html">Producción</a>
+    <span class="who" id="who"></span>
+    <button class="link" id="logoutBtn">Cerrar sesión</button>
+  </div>
+
+  <nav class="rail" id="rail">
+    <div class="grp">Inicio</div>
+    <button data-nav="tablero" class="active"><span class="ic">▣</span><span class="lbl">Tablero</span></button>
+    <button data-nav="erpgen"><span class="ic">⟳</span><span class="lbl">Generar desde ERP</span></button>
+    <div class="grp">Registro</div>
+    <button data-nav="polizas"><span class="ic">▤</span><span class="lbl">Pólizas</span></button>
+    <button data-nav="catalogo"><span class="ic">☰</span><span class="lbl">Catálogo de cuentas</span></button>
+    <button data-nav="mayor"><span class="ic">≣</span><span class="lbl">Libro mayor / diario</span></button>
+    <div class="grp">Reportes</div>
+    <button data-nav="balanza"><span class="ic">⊞</span><span class="lbl">Balanza de comprobación</span></button>
+    <button data-nav="resultados"><span class="ic">↗</span><span class="lbl">Estado de resultados</span></button>
+    <button data-nav="balance"><span class="ic">⚖</span><span class="lbl">Balance general</span></button>
+    <div class="grp">Fiscal</div>
+    <button data-nav="cfdi"><span class="ic">🧾</span><span class="lbl">CFDI 4.0</span></button>
+    <button data-nav="iva"><span class="ic">%</span><span class="lbl">IVA / DIOT</span></button>
+    <button data-nav="econta"><span class="ic">⤓</span><span class="lbl">Contabilidad electrónica</span></button>
+    <div class="grp">Sistema</div>
+    <button data-nav="config"><span class="ic">⚙</span><span class="lbl">Configuración</span></button>
+  </nav>
+
+  <main class="work">
+    <div class="cmdbar" id="cmdbar"></div>
+    <div class="scroll" id="scroll"></div>
+    <div class="legalbar">Herramienta de apoyo contable. El timbrado de CFDI y el envío de Contabilidad Electrónica al SAT requieren un PAC autorizado y su CSD/e.firma. Valide cuentas, tasas y régimen con su contador. No constituye asesoría fiscal.</div>
+  </main>
+</div>
+
+<div class="ovl" id="ovl"><div class="dlg" id="dlg"></div></div>
+
+<script>
+"use strict";
+(function(){
+
+/* ============================================================
+   CONSTANTES FISCALES (México) — valores precargados, validar
+   ============================================================ */
+const IVA_GENERAL=0.16;
+const REGIMENES_SAT=[
+  ["601","General de Ley Personas Morales"],["603","Personas Morales con Fines no Lucrativos"],
+  ["605","Sueldos y Salarios e Ingresos Asimilados a Salarios"],["606","Arrendamiento"],
+  ["612","Personas Físicas con Actividades Empresariales y Profesionales"],
+  ["621","Incorporación Fiscal"],["626","Régimen Simplificado de Confianza"]
+];
+const USO_CFDI=[
+  ["G01","Adquisición de mercancías"],["G02","Devoluciones, descuentos o bonificaciones"],
+  ["G03","Gastos en general"],["I01","Construcciones"],["I04","Equipo de cómputo y accesorios"],
+  ["P01","Por definir"],["S01","Sin efectos fiscales"],["CP01","Pagos"]
+];
+const FORMA_PAGO=[["01","Efectivo"],["02","Cheque nominativo"],["03","Transferencia electrónica"],
+  ["04","Tarjeta de crédito"],["28","Tarjeta de débito"],["99","Por definir"]];
+const METODO_PAGO=[["PUE","Pago en una sola exhibición"],["PPD","Pago en parcialidades o diferido"]];
+const CLAVE_UNIDAD=[["KGM","Kilogramo"],["H87","Pieza"],["E48","Unidad de servicio"],["ACT","Actividad"]];
+// Código agrupador SAT (Anexo 24) — subconjunto relevante a una empresa de reciclaje
+const CATALOGO_DEFAULT=[
+  // ACTIVO
+  {c:"100",n:"Activo",ag:"100",nat:"D",niv:1,af:false},
+  {c:"101",n:"Caja",ag:"101",nat:"D",niv:2,af:false},
+  {c:"101-01",n:"Caja general",ag:"101.01",nat:"D",niv:3,af:true},
+  {c:"102",n:"Bancos",ag:"102",nat:"D",niv:2,af:false},
+  {c:"102-01",n:"Banco MXN — cuenta principal",ag:"102.01",nat:"D",niv:3,af:true},
+  {c:"105",n:"Clientes",ag:"105",nat:"D",niv:2,af:false},
+  {c:"105-01",n:"Clientes nacionales",ag:"105.01",nat:"D",niv:3,af:true},
+  {c:"108",n:"Deudores diversos",ag:"108",nat:"D",niv:2,af:true},
+  {c:"115",n:"Inventario",ag:"115",nat:"D",niv:2,af:false},
+  {c:"115-01",n:"Material reciclable en proceso",ag:"115.01",nat:"D",niv:3,af:true},
+  {c:"118",n:"IVA acreditable pagado",ag:"118",nat:"D",niv:2,af:true},
+  {c:"119",n:"IVA acreditable pendiente de pago",ag:"119",nat:"D",niv:2,af:true},
+  {c:"156",n:"Equipo de cómputo",ag:"156",nat:"D",niv:2,af:true},
+  {c:"153",n:"Equipo de transporte",ag:"153",nat:"D",niv:2,af:true},
+  {c:"151",n:"Maquinaria y equipo",ag:"151",nat:"D",niv:2,af:true},
+  // PASIVO
+  {c:"200",n:"Pasivo",ag:"200",nat:"A",niv:1,af:false},
+  {c:"201",n:"Proveedores",ag:"201",nat:"A",niv:2,af:false},
+  {c:"201-01",n:"Proveedores nacionales",ag:"201.01",nat:"A",niv:3,af:true},
+  {c:"205",n:"Acreedores diversos",ag:"205",nat:"A",niv:2,af:true},
+  {c:"208",n:"IVA trasladado cobrado",ag:"208",nat:"A",niv:2,af:true},
+  {c:"209",n:"IVA trasladado no cobrado",ag:"209",nat:"A",niv:2,af:true},
+  {c:"213",n:"Impuestos y derechos por pagar",ag:"213",nat:"A",niv:2,af:false},
+  {c:"213-01",n:"IVA por pagar",ag:"213.01",nat:"A",niv:3,af:true},
+  {c:"213-02",n:"IVA retenido por enterar",ag:"216.10",nat:"A",niv:3,af:true},
+  {c:"213-03",n:"ISR retenido por enterar",ag:"216.07",nat:"A",niv:3,af:true},
+  {c:"216",n:"Impuestos a la utilidad por pagar (ISR)",ag:"216",nat:"A",niv:2,af:true},
+  // CAPITAL
+  {c:"300",n:"Capital contable",ag:"300",nat:"A",niv:1,af:false},
+  {c:"301",n:"Capital social",ag:"301",nat:"A",niv:2,af:true},
+  {c:"305",n:"Resultado de ejercicios anteriores",ag:"305",nat:"A",niv:2,af:true},
+  {c:"306",n:"Resultado del ejercicio",ag:"306",nat:"A",niv:2,af:true},
+  // INGRESOS
+  {c:"400",n:"Ingresos",ag:"400",nat:"A",niv:1,af:false},
+  {c:"401",n:"Ventas y servicios",ag:"401",nat:"A",niv:2,af:false},
+  {c:"401-01",n:"Venta de material reciclable (commodities)",ag:"401.01",nat:"A",niv:3,af:true},
+  {c:"401-02",n:"Venta de activos / equipo (ARS)",ag:"401.01",nat:"A",niv:3,af:true},
+  {c:"401-03",n:"Servicios de reciclaje y destrucción",ag:"401.01",nat:"A",niv:3,af:true},
+  {c:"402",n:"Devoluciones y descuentos s/ventas",ag:"402",nat:"D",niv:2,af:true},
+  {c:"403",n:"Otros ingresos",ag:"403",nat:"A",niv:2,af:true},
+  // COSTOS
+  {c:"500",n:"Costos",ag:"500",nat:"D",niv:1,af:false},
+  {c:"501",n:"Costo de venta y/o servicio",ag:"501",nat:"D",niv:2,af:false},
+  {c:"501-01",n:"Costo de material y refacciones",ag:"501.01",nat:"D",niv:3,af:true},
+  {c:"501-02",n:"Costo de disposición / destrucción",ag:"501.01",nat:"D",niv:3,af:true},
+  // GASTOS
+  {c:"600",n:"Gastos",ag:"600",nat:"D",niv:1,af:false},
+  {c:"601",n:"Gastos generales",ag:"601",nat:"D",niv:2,af:false},
+  {c:"601-01",n:"Sueldos y salarios (operadores)",ag:"601.01",nat:"D",niv:3,af:true},
+  {c:"601-02",n:"Renta y mantenimiento de planta",ag:"601.06",nat:"D",niv:3,af:true},
+  {c:"601-03",n:"Gastos administrativos",ag:"601.84",nat:"D",niv:3,af:true},
+  {c:"602",n:"Gastos de venta",ag:"602",nat:"D",niv:2,af:true},
+  {c:"603",n:"Gastos de administración",ag:"603",nat:"D",niv:2,af:true},
+  // RESULTADO FINANCIERO
+  {c:"701",n:"Gastos financieros",ag:"701",nat:"D",niv:2,af:true},
+  {c:"702",n:"Productos financieros",ag:"702",nat:"A",niv:2,af:true}
+];
+
+/* ============================================================
+   ESTADO
+   ============================================================ */
+const LS_KEY='erp_conta_state';
+let C={
+  config:{rfc:"",razon:"",regimen:"601",cp:"",ejercicio:new Date().getFullYear(),
+          ivaTasa:16,retIvaReciclaje:true,retIvaReciclajePct:8},
+  cuentas:[], polizas:[], cfdis:[],
+  postedFromErp:{}, // claves de operaciones del ERP ya contabilizadas
+  nextId:{p:1,f:1}
+};
+let UI={page:'tablero', mayorCuenta:'', polizaSearch:'', catSearch:'', collapsed:{}};
+
+function loadC(){
+  try{const r=localStorage.getItem(LS_KEY);if(r){const d=JSON.parse(r);C={...C,...d,config:{...C.config,...(d.config||{})},nextId:{...C.nextId,...(d.nextId||{})}};}}catch(e){}
+  if(!C.cuentas||!C.cuentas.length){C.cuentas=CATALOGO_DEFAULT.map(x=>({...x,id:'cta'+x.c}));}
+  C.polizas=C.polizas||[];C.cfdis=C.cfdis||[];C.postedFromErp=C.postedFromErp||{};
+}
+function saveC(){
+  try{localStorage.setItem(LS_KEY,JSON.stringify(C));}
+  catch(e){alert('No se pudo guardar (almacenamiento lleno).');}
+}
+function cid(p){if(!C.nextId[p])C.nextId[p]=1;return p+(C.nextId[p]++);}
+
+/* Estado del ERP (solo lectura) */
+function erpState(){try{const r=localStorage.getItem('erp_state');return r?JSON.parse(r):null;}catch(e){return null;}}
+function prodState(){try{const r=localStorage.getItem('erp_prod_state');return r?JSON.parse(r):null;}catch(e){return null;}}
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function escA(s){return esc(s).replace(/"/g,'&quot;');}
+function money(n){n=Number(n)||0;return n.toLocaleString('es-MX',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function $(id){return document.getElementById(id);}
+function el(html){const t=document.createElement('template');t.innerHTML=html.trim();return t.content.firstElementChild;}
+function cuenta(idOrCode){return C.cuentas.find(x=>x.id===idOrCode||x.c===idOrCode);}
+function cuentasAfectables(){return C.cuentas.filter(x=>x.af);}
+function todayISO(){return new Date().toISOString().split('T')[0];}
+function periodoLabel(){return 'Ejercicio '+C.config.ejercicio;}
+function fmtFecha(d){return d||'';}
+
+/* Naturaleza: D = deudora (cargo aumenta), A = acreedora (abono aumenta) */
+function saldoCuenta(codigo,hasta){
+  let cargo=0,abono=0;
+  C.polizas.filter(p=>p.estado==='contabilizada'&&(!hasta||p.fecha<=hasta)).forEach(p=>{
+    p.movs.forEach(m=>{ if(prefijo(m.cuenta,codigo)){cargo+=Number(m.cargo)||0;abono+=Number(m.abono)||0;} });
+  });
+  return {cargo,abono,saldo:cargo-abono};
+}
+// true si 'codigoMov' pertenece a la cuenta 'codigoBase' (misma o subcuenta)
+function prefijo(codigoMov,codigoBase){
+  if(codigoMov===codigoBase)return true;
+  return codigoMov.indexOf(codigoBase+'-')===0;
+}
+function naturalezaSaldo(codigo){
+  const ct=cuenta(codigo);const s=saldoCuenta(codigo);
+  if(!ct)return s.saldo;
+  return ct.nat==='A'? -s.saldo : s.saldo; // saldo presentado positivo según naturaleza
+}
+
+/* ============================================================
+   NAVEGACIÓN
+   ============================================================ */
+const PAGES={
+  tablero:{t:'Tablero',render:renderTablero,cmd:cmdTablero},
+  erpgen:{t:'Generar pólizas desde ERP',render:renderErpGen,cmd:cmdErpGen},
+  polizas:{t:'Pólizas',render:renderPolizas,cmd:cmdPolizas},
+  catalogo:{t:'Catálogo de cuentas',render:renderCatalogo,cmd:cmdCatalogo},
+  mayor:{t:'Libro mayor / diario',render:renderMayor,cmd:cmdMayor},
+  balanza:{t:'Balanza de comprobación',render:renderBalanza,cmd:cmdBalanza},
+  resultados:{t:'Estado de resultados',render:renderResultados,cmd:cmdReport},
+  balance:{t:'Balance general',render:renderBalance,cmd:cmdReport},
+  cfdi:{t:'CFDI 4.0',render:renderCfdi,cmd:cmdCfdi},
+  iva:{t:'IVA / DIOT',render:renderIva,cmd:cmdReport},
+  econta:{t:'Contabilidad electrónica (Anexo 24)',render:renderEconta,cmd:cmdReport},
+  config:{t:'Configuración',render:renderConfig,cmd:cmdConfigBar}
+};
+function nav(p){
+  UI.page=p;
+  document.querySelectorAll('.rail button[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===p));
+  const P=PAGES[p];
+  $('cmdbar').innerHTML='';
+  const h=el(`<h1>${esc(P.t)}</h1>`);$('cmdbar').appendChild(h);
+  if(P.cmd)P.cmd($('cmdbar'));
+  $('scroll').scrollTop=0;
+  $('scroll').innerHTML=`<div class="page active" id="pg">${P.render()}</div>`;
+  if(P.after)P.after();
+}
+function refresh(){nav(UI.page);}
+
+/* ============================================================
+   MODAL
+   ============================================================ */
+function modal(title,bodyHtml,footerBtns,wide){
+  $('dlg').className='dlg'+(wide?' wide':'');
+  $('dlg').innerHTML=`
+    <div class="dh"><h3>${esc(title)}</h3><button class="x" data-close>✕</button></div>
+    <div class="db">${bodyHtml}</div>
+    <div class="df" id="dlgF"></div>`;
+  const f=$('dlgF');
+  (footerBtns||[{t:'Cerrar',cls:'btn',act:closeModal}]).forEach(b=>{
+    const bt=el(`<button class="btn ${b.cls||''}">${esc(b.t)}</button>`);
+    bt.addEventListener('click',b.act);f.appendChild(bt);
+  });
+  $('dlg').querySelector('[data-close]').addEventListener('click',closeModal);
+  $('ovl').classList.add('show');
+}
+function closeModal(){$('ovl').classList.remove('show');$('dlg').innerHTML='';}
+$('ovl').addEventListener('click',e=>{if(e.target===$('ovl'))closeModal();});
+
+/* ============================================================
+   TABLERO
+   ============================================================ */
+function cmdTablero(bar){
+  bar.appendChild(el(`<span class="sub">${esc(periodoLabel())}</span>`));
+  bar.appendChild(el(`<span class="grow"></span>`));
+  const b=el(`<button class="btn primary"><span class="ic">＋</span> Nueva póliza</button>`);
+  b.addEventListener('click',()=>openPoliza());bar.appendChild(b);
+}
+function balanzaCuadre(){
+  let c=0,a=0;
+  C.polizas.filter(p=>p.estado==='contabilizada').forEach(p=>p.movs.forEach(m=>{c+=Number(m.cargo)||0;a+=Number(m.abono)||0;}));
+  return {c,a,ok:Math.abs(c-a)<0.01};
+}
+function calcResultado(){
+  const ing=-saldoCuenta('400').saldo - (-saldoCuenta('402').saldo); // ingresos netos (acreedora)
+  const ingresos=-saldoCuenta('400').saldo;
+  const devol=saldoCuenta('402').saldo;
+  const costo=saldoCuenta('500').saldo;
+  const gasto=saldoCuenta('600').saldo;
+  const gf=saldoCuenta('701').saldo - (-saldoCuenta('702').saldo);
+  const utilidad=(ingresos-devol)-costo-gasto-gf;
+  return {ingresos,devol,costo,gasto,gf,utilidad};
+}
+function ivaResumen(){
+  const trasladado=-saldoCuenta('208').saldo + -saldoCuenta('209').saldo;
+  const acreditable=saldoCuenta('118').saldo + saldoCuenta('119').saldo;
+  const retenido=-saldoCuenta('213-01').saldo; // simplificado
+  return {trasladado,acreditable,porPagar:trasladado-acreditable};
+}
+function renderTablero(){
+  if(!C.config.rfc){
+    return `<div class="note w">⚠ Configure los datos fiscales de la empresa (RFC, razón social, régimen) en <b>Configuración</b> antes de operar.</div>`+tableroCuerpo();
+  }
+  return tableroCuerpo();
+}
+function tableroCuerpo(){
+  const bc=balanzaCuadre();
+  const res=calcResultado();
+  const iva=ivaResumen();
+  const mesPol=C.polizas.filter(p=>p.estado==='contabilizada').length;
+  const borr=C.polizas.filter(p=>p.estado==='borrador').length;
+  const pend=pendientesErp().length;
+  const cfdiPend=C.cfdis.filter(x=>x.estatus!=='timbrado').length;
+  return `
+  <div class="cues">
+    <div class="cue ${bc.ok?'good':'bad'}" data-go="balanza">
+      <div class="k">Balanza</div><div class="v">${bc.ok?'Cuadrada':'Descuadre'}</div>
+      <div class="d">Cargos $${money(bc.c)} · Abonos $${money(bc.a)}</div></div>
+    <div class="cue info" data-go="polizas"><div class="k">Pólizas contabilizadas</div><div class="v tabular">${mesPol}</div><div class="d">${borr} en borrador</div></div>
+    <div class="cue ${pend?'warn':'good'}" data-go="erpgen"><div class="k">Operaciones ERP sin contabilizar</div><div class="v tabular">${pend}</div><div class="d">Ventas y costeos pendientes</div></div>
+    <div class="cue ${iva.porPagar>0?'bad':'good'}" data-go="iva"><div class="k">IVA del ejercicio</div><div class="v tabular">$${money(Math.abs(iva.porPagar))}</div><div class="d">${iva.porPagar>=0?'Por pagar':'A favor'}</div></div>
+    <div class="cue ${res.utilidad>=0?'good':'bad'}" data-go="resultados"><div class="k">Resultado del ejercicio</div><div class="v tabular">$${money(res.utilidad)}</div><div class="d">Antes de ISR</div></div>
+    <div class="cue ${cfdiPend?'warn':'good'}" data-go="cfdi"><div class="k">CFDI sin timbrar</div><div class="v tabular">${cfdiPend}</div><div class="d">Pendientes de PAC</div></div>
+  </div>
+  <div class="grid2">
+    <div class="panel"><div class="hd"><h3>Pendientes de contabilizar (desde ERP)</h3><span class="grow"></span><button class="btn sm" data-go="erpgen">Ver todo</button></div>
+      <div class="bd" id="tbl-tasks">${renderTasksMini()}</div></div>
+    <div class="panel"><div class="hd"><h3>Resumen del ejercicio</h3></div><div class="bd">
+      <div class="kpi-row" style="flex-direction:column;border:0">
+        ${kpiLine('Ingresos netos','$'+money(res.ingresos-res.devol),'pos')}
+        ${kpiLine('Costo de venta','$'+money(res.costo),'neg')}
+        ${kpiLine('Gastos de operación','$'+money(res.gasto),'neg')}
+        ${kpiLine('Resultado financiero','$'+money(res.gf),res.gf<=0?'pos':'neg')}
+        ${kpiLine('Utilidad antes de ISR','$'+money(res.utilidad),res.utilidad>=0?'pos':'neg')}
+      </div></div></div>
+  </div>`;
+}
+function kpiLine(k,v,cls){return `<div style="display:flex;justify-content:space-between;padding:9px 2px;border-bottom:1px solid var(--line-2)"><span style="color:var(--ink-2)">${esc(k)}</span><b class="tabular ${cls||''}">${esc(v)}</b></div>`;}
+function renderTasksMini(){
+  const t=pendientesErp().slice(0,5);
+  if(!t.length)return `<div class="empty">Todo contabilizado. Sin operaciones pendientes del ERP.</div>`;
+  return t.map(x=>`<div class="taskitem"><div class="ti-main"><div class="ti-t">${esc(x.titulo)}</div><div class="ti-s">${esc(x.detalle)}</div></div><span class="bdg b tabular">$${money(x.total)}</span></div>`).join('');
+}
+
+/* ============================================================
+   INTEGRACIÓN ERP — operaciones pendientes de contabilizar
+   ============================================================ */
+function pendientesErp(){
+  const out=[];
+  const es=erpState(),ps=prodState();
+  if(!es)return out;
+  // 1) Ventas (sales orders de producción)
+  if(ps&&Array.isArray(ps.salesOrders)){
+    ps.salesOrders.forEach(so=>{
+      const key='SO:'+so.id;
+      if(C.postedFromErp[key])return;
+      const comp=(ps.compradores||[]).find(c=>c.id===so.compradorId);
+      const monto=Number(so.monto)||0;
+      out.push({tipo:'venta',key,refId:so.id,
+        titulo:`Venta ${so.num?('#'+so.num):''} — ${comp?comp.nombre:'comprador'}`,
+        detalle:`${so.tipo==='assets'?'Activos (ARS)':'Material (loads)'} · ${fmtFecha(so.fecha)} · subtotal estimado`,
+        fecha:so.fecha||todayISO(), total:monto, base:monto});
+    });
+  }
+  // 2) Costeo de lotes ganados (egresos / costo)
+  (es.lotes||[]).filter(l=>l.estadoComercial==='ganada').forEach(l=>{
+    const key='COSTEO:'+l.id;
+    if(C.postedFromErp[key])return;
+    const r=calcCosteoErp(l,es);
+    if(!r||(r.totalEgresos<=0&&r.totalIngresos<=0))return;
+    out.push({tipo:'costeo',key,refId:l.id,
+      titulo:`Costeo lote ${l.nombre}`,
+      detalle:`Egresos operativos $${money(r.totalEgresos)} · Ingresos $${money(r.totalIngresos)}`,
+      fecha:l.deadline||todayISO(), total:r.totalEgresos, base:r.totalEgresos, _r:r, _lote:l});
+  });
+  return out;
+}
+// réplica compacta del costeo del ERP
+function calcCosteoErp(l,st){
+  const cst=(st.costeos||{})[l.id]||{};
+  const cfgE=(st.config&&st.config.eol)||{sueldoDia:0,gastosFijos:0};
+  const cfgA=(st.config&&st.config.ars)||{sueldoDia:0,gastosFijos:0};
+  const opsE=((st.operadoresEOL||[]).filter(o=>o.activo!==false).length)||1;
+  const opsA=((st.operadoresARS||[]).filter(o=>o.activo!==false).length)||1;
+  const moE=((l.tiempoTotal||0)/60/8)*cfgE.sueldoDia;
+  const fiE=((l.tiempoTotal||0)/opsE/60/8)*cfgE.gastosFijos;
+  const moA=((l.tiempoARSTotal||0)/60/8)*cfgA.sueldoDia;
+  const fiA=((l.tiempoARSTotal||0)/opsA/60/8)*cfgA.gastosFijos;
+  let valIng=0,valDisp=0;
+  Object.entries(l.commAgg||{}).forEach(([id,kg])=>{const c=(st.commodities||[]).find(x=>x.id===id);if(!c)return;if(c.tipo==='disposicion')valDisp+=c.valor*kg;else valIng+=c.valor*kg;});
+  let refac=0;(l.refacciones||[]).forEach(rf=>{const r=(st.refacciones||[]).find(x=>x.id===rf.refId);if(r)refac+=r.precio*rf.qty;});
+  const valARS=l.valorARSTotal||0;
+  const logE=parseFloat(cst.logEgreso)||0,logI=parseFloat(cst.logIngreso)||0;
+  let cobro=0;const tp=cst.cobroTipo||'total';const vv=parseFloat(cst.cobroValor)||0;
+  const pz=(l.items||[]).reduce((a,x)=>a+x.qty,0)+(l.itemsARS||[]).reduce((a,x)=>a+x.qty,0);
+  if(tp==='total')cobro=vv;else if(tp==='kg')cobro=vv*(l.pesoTotal||0);else if(tp==='pieza')cobro=vv*pz;
+  const totalEgresos=moE+fiE+moA+fiA+logE+valDisp+refac+(cobro<0?Math.abs(cobro):0);
+  const totalIngresos=valIng+valARS+logI+(cobro>0?cobro:0);
+  return {moEOL:moE,fiEOL:fiE,moARS:moA,fiARS:fiA,logE,valDisp,refac,valIng,valARS,logI,cobro,totalEgresos,totalIngresos};
+}
+function cmdErpGen(bar){
+  bar.appendChild(el(`<span class="grow"></span>`));
+  const b=el(`<button class="btn primary"><span class="ic">⟳</span> Generar todas las pólizas</button>`);
+  b.addEventListener('click',generarTodas);bar.appendChild(b);
+}
+function renderErpGen(){
+  const es=erpState();
+  if(!es)return `<div class="note r">No se encontró el estado del ERP (<code>erp_state</code>). Abra primero el ERP y registre operaciones.</div>`;
+  const pend=pendientesErp();
+  const fis=fiscalConfigOk();
+  let h=`<div class="note i">Cada operación del ERP genera una <b>póliza de partida doble</b> con su IVA trasladado/acreditable y, en compra de desperdicios, la <b>retención de IVA por reciclaje</b> (Art. 1-A LIVA). Las pólizas se crean en <b>borrador</b>; revíselas y contabilícelas.</div>`;
+  if(!fis)h+=`<div class="note w">Configure los datos fiscales antes de generar pólizas.</div>`;
+  if(!pend.length)return h+`<div class="empty">No hay operaciones del ERP pendientes de contabilizar.</div>`;
+  h+=`<div class="panel"><div class="bd flush"><table>
+    <thead><tr><th>Operación</th><th>Tipo</th><th>Fecha</th><th class="num">Monto</th><th>Asiento propuesto</th><th></th></tr></thead><tbody>`;
+  pend.forEach(x=>{
+    const a=asientoPropuesto(x);
+    h+=`<tr><td><b>${esc(x.titulo)}</b><br><span class="muted">${esc(x.detalle)}</span></td>
+      <td><span class="bdg ${x.tipo==='venta'?'g':'a'}">${x.tipo==='venta'?'Ingreso':'Egreso'}</span></td>
+      <td>${esc(x.fecha)}</td><td class="num tabular">$${money(x.total)}</td>
+      <td style="font-size:11.5px;color:var(--ink-2)">${a.movs.map(m=>`${esc(m.cuenta)} ${m.cargo?'<span class=pos>C $'+money(m.cargo)+'</span>':'<span class=neg>A $'+money(m.abono)+'</span>'}`).join('<br>')}</td>
+      <td><button class="btn sm primary" data-gen="${escA(x.key)}">Generar</button></td></tr>`;
+  });
+  h+=`</tbody></table></div></div>`;
+  return h;
+}
+// Construye el asiento contable propuesto para una operación del ERP
+function asientoPropuesto(x){
+  const ivaR=C.config.ivaTasa/100;
+  if(x.tipo==='venta'){
+    const total=x.total;                 // se asume monto = subtotal (sin IVA) de la SO
+    const sub=total;
+    const iva=+(sub*ivaR).toFixed(2);
+    const tot=+(sub+iva).toFixed(2);
+    const esps=erpState(), ps=prodState();
+    const so=(ps&&ps.salesOrders||[]).find(s=>s.id===x.refId)||{};
+    const ctaIng = so.tipo==='assets' ? '401-02' : '401-01';
+    return {tipo:'Ingreso',concepto:x.titulo,fecha:x.fecha,
+      movs:[
+        {cuenta:'105-01',concepto:'Cliente / comprador',cargo:tot,abono:0},
+        {cuenta:ctaIng,concepto:'Venta',cargo:0,abono:sub},
+        {cuenta:'208',concepto:'IVA trasladado',cargo:0,abono:iva}
+      ]};
+  }
+  // costeo -> egreso operativo (costo + gastos) con IVA acreditable estimado sobre la parte gravada
+  const r=x._r||{};
+  const movs=[];
+  const costoMat=(r.refac||0)+(r.valDisp||0);
+  const gastos=(r.moEOL||0)+(r.fiEOL||0)+(r.moARS||0)+(r.fiARS||0)+(r.logE||0);
+  if(costoMat>0)movs.push({cuenta:'501-01',concepto:'Costo material/refacciones/disposición',cargo:+costoMat.toFixed(2),abono:0});
+  if(gastos>0)movs.push({cuenta:'601-01',concepto:'Sueldos, renta y gastos de planta',cargo:+gastos.toFixed(2),abono:0});
+  const totEgr=+(costoMat+gastos).toFixed(2);
+  movs.push({cuenta:'205',concepto:'Provisión acreedores / por pagar',cargo:0,abono:totEgr});
+  return {tipo:'Egreso',concepto:x.titulo,fecha:x.fecha,movs};
+}
+function generarUna(key){
+  const x=pendientesErp().find(p=>p.key===key);
+  if(!x)return;
+  const a=asientoPropuesto(x);
+  const p={id:cid('p'),folio:'',tipo:a.tipo,fecha:a.fecha,concepto:a.concepto,
+    estado:'borrador',origen:'ERP:'+x.tipo,refErp:x.key,
+    movs:a.movs.map(m=>({...m})),creada:todayISO()};
+  C.polizas.push(p);
+  C.postedFromErp[x.key]=p.id;
+  saveC();refresh();
+}
+function generarTodas(){
+  const pend=pendientesErp();
+  if(!pend.length)return;
+  if(!confirm(`Se generarán ${pend.length} pólizas en borrador. ¿Continuar?`))return;
+  pend.forEach(x=>{
+    const a=asientoPropuesto(x);
+    const p={id:cid('p'),folio:'',tipo:a.tipo,fecha:a.fecha,concepto:a.concepto,
+      estado:'borrador',origen:'ERP:'+x.tipo,refErp:x.key,movs:a.movs.map(m=>({...m})),creada:todayISO()};
+    C.polizas.push(p);C.postedFromErp[x.key]=p.id;
+  });
+  saveC();refresh();
+}
+
+/* ============================================================
+   PÓLIZAS
+   ============================================================ */
+function cmdPolizas(bar){
+  bar.appendChild(el(`<span class="grow"></span>`));
+  const s=el(`<div class="searchwrap"><input id="polSearch" placeholder="Buscar concepto / folio" value="${escA(UI.polizaSearch)}"></div>`);
+  s.querySelector('input').addEventListener('input',e=>{UI.polizaSearch=e.target.value;document.getElementById('polBody').innerHTML=polizasRows();});
+  bar.appendChild(s);bar.appendChild(el(`<span class="cmdsep"></span>`));
+  const b=el(`<button class="btn primary"><span class="ic">＋</span> Nueva póliza</button>`);
+  b.addEventListener('click',()=>openPoliza());bar.appendChild(b);
+}
+function polizasRows(){
+  let ps=C.polizas.slice().sort((a,b)=> (b.fecha||'').localeCompare(a.fecha||'')|| (b.id>a.id?1:-1));
+  const q=UI.polizaSearch.toLowerCase().trim();
+  if(q)ps=ps.filter(p=>(p.concepto||'').toLowerCase().includes(q)||(p.folio||'').toLowerCase().includes(q)||(p.tipo||'').toLowerCase().includes(q));
+  if(!ps.length)return `<tr><td colspan="7"><div class="empty">Sin pólizas. Cree una o genérelas desde el ERP.</div></td></tr>`;
+  return ps.map(p=>{
+    const c=p.movs.reduce((a,m)=>a+(Number(m.cargo)||0),0);
+    const a=p.movs.reduce((a,m)=>a+(Number(m.abono)||0),0);
+    const cuad=Math.abs(c-a)<0.01;
+    return `<tr>
+      <td><b>${esc(p.folio||'(s/folio)')}</b><br><span class="muted">${esc(p.tipo)}</span></td>
+      <td>${esc(p.fecha)}</td>
+      <td>${esc(p.concepto)}${p.origen?` <span class="bdg n">${esc(p.origen)}</span>`:''}</td>
+      <td class="num tabular">$${money(c)}</td><td class="num tabular">$${money(a)}</td>
+      <td>${cuad?'':'<span class="bdg r">Descuadrada</span> '}${p.estado==='contabilizada'?'<span class="bdg g">Contabilizada</span>':'<span class="bdg a">Borrador</span>'}</td>
+      <td style="text-align:right;white-space:nowrap">
+        <button class="btn sm" data-edit="${escA(p.id)}">Abrir</button>
+        ${p.estado!=='contabilizada'?`<button class="btn sm primary" data-post="${escA(p.id)}" ${cuad?'':'disabled'}>Contabilizar</button>`:`<button class="btn sm" data-unpost="${escA(p.id)}">Reversar</button>`}
+        <button class="btn sm danger" data-delp="${escA(p.id)}">✕</button>
+      </td></tr>`;
+  }).join('');
+}
+function renderPolizas(){
+  return `<div class="panel"><div class="bd flush"><table>
+    <thead><tr><th>Folio / tipo</th><th>Fecha</th><th>Concepto</th><th class="num">Cargos</th><th class="num">Abonos</th><th>Estado</th><th></th></tr></thead>
+    <tbody id="polBody">${polizasRows()}</tbody></table></div></div>`;
+}
+function openPoliza(id){
+  const p=id?C.polizas.find(x=>x.id===id):{id:'',folio:'',tipo:'Diario',fecha:todayISO(),concepto:'',estado:'borrador',movs:[{cuenta:'',concepto:'',cargo:0,abono:0},{cuenta:'',concepto:'',cargo:0,abono:0}]};
+  const opts=cuentasAfectables().map(c=>`<option value="${escA(c.c)}">${esc(c.c)} · ${esc(c.n)}</option>`).join('');
+  const body=`
+    <div class="frow">
+      <div class="fld" style="max-width:140px"><label>Tipo</label><select id="pTipo">${['Ingreso','Egreso','Diario'].map(t=>`<option ${p.tipo===t?'selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="fld" style="max-width:160px"><label>Fecha</label><input type="date" id="pFecha" value="${escA(p.fecha)}"></div>
+      <div class="fld" style="max-width:140px"><label>Folio</label><input id="pFolio" value="${escA(p.folio)}" placeholder="auto"></div>
+      <div class="fld"><label>Concepto</label><input id="pConcepto" value="${escA(p.concepto)}" placeholder="Descripción del asiento"></div>
+    </div>
+    <table style="margin:8px 0"><thead><tr><th style="width:34%">Cuenta</th><th>Concepto</th><th class="num" style="width:130px">Cargo</th><th class="num" style="width:130px">Abono</th><th style="width:34px"></th></tr></thead>
+    <tbody id="movRows"></tbody></table>
+    <button class="btn sm" id="addMov">＋ Agregar movimiento</button>
+    <div id="balLine" style="margin-top:14px"></div>`;
+  modal(id?'Póliza '+(p.folio||p.id):'Nueva póliza',body,[
+    {t:'Cancelar',cls:'',act:closeModal},
+    {t:'Guardar borrador',cls:'',act:()=>savePoliza(id,false)},
+    {t:'Guardar y contabilizar',cls:'primary',act:()=>savePoliza(id,true)}
+  ],true);
+  const tb=$('movRows');
+  function addRow(m){
+    const r=el(`<tr class="movrow">
+      <td><select class="m-cta"><option value="">— cuenta —</option>${opts}</select></td>
+      <td><input class="m-con" value="${escA(m.concepto||'')}"></td>
+      <td><input class="m-car num tabular" type="number" step="0.01" value="${m.cargo||''}" style="text-align:right"></td>
+      <td><input class="m-abo num tabular" type="number" step="0.01" value="${m.abono||''}" style="text-align:right"></td>
+      <td><button class="btn sm danger" title="Quitar">✕</button></td></tr>`);
+    r.querySelector('.m-cta').value=m.cuenta||'';
+    r.querySelector('.btn.danger').addEventListener('click',()=>{r.remove();recalc();});
+    r.querySelectorAll('input,select').forEach(i=>i.addEventListener('input',recalc));
+    tb.appendChild(r);
+  }
+  (p.movs||[]).forEach(addRow);
+  $('addMov').addEventListener('click',()=>{addRow({cuenta:'',concepto:'',cargo:0,abono:0});recalc();});
+  function recalc(){
+    let c=0,a=0;
+    tb.querySelectorAll('.movrow').forEach(r=>{c+=parseFloat(r.querySelector('.m-car').value)||0;a+=parseFloat(r.querySelector('.m-abo').value)||0;});
+    const ok=Math.abs(c-a)<0.01 && (c>0||a>0);
+    $('balLine').innerHTML=`<span class="balchk ${ok?'ok':'bad'}"><span>Cargos $${money(c)}</span><span>Abonos $${money(a)}</span><span>${ok?'✓ Partida cuadrada':'✗ Diferencia $'+money(Math.abs(c-a))}</span></span>`;
+  }
+  recalc();
+}
+function readPolizaForm(){
+  const movs=[];
+  document.querySelectorAll('#movRows .movrow').forEach(r=>{
+    const cuenta=r.querySelector('.m-cta').value;
+    const concepto=r.querySelector('.m-con').value.trim();
+    const cargo=parseFloat(r.querySelector('.m-car').value)||0;
+    const abono=parseFloat(r.querySelector('.m-abo').value)||0;
+    if(cuenta&&(cargo>0||abono>0))movs.push({cuenta,concepto,cargo,abono});
+  });
+  return {tipo:$('pTipo').value,fecha:$('pFecha').value,folio:$('pFolio').value.trim(),concepto:$('pConcepto').value.trim(),movs};
+}
+function savePoliza(id,post){
+  const f=readPolizaForm();
+  if(!f.fecha){alert('Indique la fecha.');return;}
+  if(f.movs.length<2){alert('Una póliza requiere al menos 2 movimientos.');return;}
+  const c=f.movs.reduce((a,m)=>a+m.cargo,0),a=f.movs.reduce((s,m)=>s+m.abono,0);
+  if(Math.abs(c-a)>=0.01){alert('La póliza no está cuadrada (cargos ≠ abonos). No se puede guardar.');return;}
+  let folio=f.folio;
+  if(!folio){folio=(f.tipo[0])+'-'+String(C.nextId.f++).padStart(5,'0');}
+  if(id){
+    const i=C.polizas.findIndex(x=>x.id===id);
+    if(i>=0)C.polizas[i]={...C.polizas[i],...f,folio,estado:post?'contabilizada':C.polizas[i].estado};
+  }else{
+    C.polizas.push({id:cid('p'),...f,folio,estado:post?'contabilizada':'borrador',creada:todayISO()});
+  }
+  saveC();closeModal();refresh();
+}
+function postPoliza(id){
+  const p=C.polizas.find(x=>x.id===id);if(!p)return;
+  const c=p.movs.reduce((a,m)=>a+(Number(m.cargo)||0),0),a=p.movs.reduce((s,m)=>s+(Number(m.abono)||0),0);
+  if(Math.abs(c-a)>=0.01){alert('Póliza descuadrada.');return;}
+  p.estado='contabilizada';saveC();refresh();
+}
+function unpostPoliza(id){
+  if(!confirm('¿Reversar a borrador? Dejará de afectar saldos.'))return;
+  const p=C.polizas.find(x=>x.id===id);if(p){p.estado='borrador';saveC();refresh();}
+}
+function deletePoliza(id){
+  if(!confirm('¿Eliminar póliza?'))return;
+  const p=C.polizas.find(x=>x.id===id);
+  C.polizas=C.polizas.filter(x=>x.id!==id);
+  if(p&&p.refErp&&C.postedFromErp[p.refErp]===id)delete C.postedFromErp[p.refErp];
+  saveC();refresh();
+}
+
+/* ============================================================
+   CATÁLOGO DE CUENTAS
+   ============================================================ */
+function cmdCatalogo(bar){
+  bar.appendChild(el(`<span class="grow"></span>`));
+  const s=el(`<div class="searchwrap"><input id="catS" placeholder="Buscar código / nombre" value="${escA(UI.catSearch)}"></div>`);
+  s.querySelector('input').addEventListener('input',e=>{UI.catSearch=e.target.value;document.getElementById('catBody').innerHTML=catalogoRows();});
+  bar.appendChild(s);bar.appendChild(el(`<span class="cmdsep"></span>`));
+  const r=el(`<button class="btn"><span class="ic">⟲</span> Restaurar predefinido</button>`);
+  r.addEventListener('click',()=>{if(confirm('Reemplaza el catálogo por el predefinido (Anexo 24). ¿Continuar?')){C.cuentas=CATALOGO_DEFAULT.map(x=>({...x,id:'cta'+x.c}));saveC();refresh();}});
+  bar.appendChild(r);
+  const b=el(`<button class="btn primary"><span class="ic">＋</span> Nueva cuenta</button>`);
+  b.addEventListener('click',()=>openCuenta());bar.appendChild(b);
+}
+function catalogoRows(){
+  let cs=C.cuentas.slice().sort((a,b)=>a.c.localeCompare(b.c,undefined,{numeric:true}));
+  const q=UI.catSearch.toLowerCase().trim();
+  if(q)cs=cs.filter(c=>c.c.toLowerCase().includes(q)||c.n.toLowerCase().includes(q)||(c.ag||'').includes(q));
+  if(!cs.length)return `<tr><td colspan="6"><div class="empty">Sin cuentas.</div></td></tr>`;
+  return cs.map(c=>{
+    const s=c.af?saldoCuenta(c.c):saldoCuenta(c.c);
+    const pres=naturalezaSaldo(c.c);
+    return `<tr>
+      <td><span class="mono lvl-${c.niv}" style="padding-left:${(c.niv-1)*16}px">${esc(c.c)}</span></td>
+      <td class="lvl-${c.niv}">${esc(c.n)}</td>
+      <td class="mono muted">${esc(c.ag||'')}</td>
+      <td>${c.nat==='D'?'Deudora':'Acreedora'}</td>
+      <td>${c.af?'<span class="bdg b">Afectable</span>':'<span class="bdg n">Acumulativa</span>'}</td>
+      <td class="num tabular">${pres? '$'+money(pres):'<span class="muted">—</span>'}
+        <button class="btn sm" data-edcta="${escA(c.id)}" style="margin-left:8px">Editar</button>
+        <button class="btn sm danger" data-delcta="${escA(c.id)}">✕</button></td></tr>`;
+  }).join('');
+}
+function renderCatalogo(){
+  return `<div class="note i">Catálogo con <b>código agrupador del SAT (Anexo 24)</b>. Las cuentas <b>afectables</b> reciben movimientos; las <b>acumulativas</b> solo agrupan saldos para reportes y la balanza.</div>
+  <div class="panel"><div class="bd flush"><table>
+  <thead><tr><th>Código</th><th>Nombre</th><th>Cód. agrupador SAT</th><th>Naturaleza</th><th>Tipo</th><th class="num">Saldo / acciones</th></tr></thead>
+  <tbody id="catBody">${catalogoRows()}</tbody></table></div></div>`;
+}
+function openCuenta(id){
+  const c=id?C.cuentas.find(x=>x.id===id):{id:'',c:'',n:'',ag:'',nat:'D',niv:3,af:true};
+  const body=`
+   <div class="frow">
+     <div class="fld" style="max-width:160px"><label>Código</label><input id="cC" value="${escA(c.c)}" placeholder="105-01"></div>
+     <div class="fld"><label>Nombre</label><input id="cN" value="${escA(c.n)}"></div>
+   </div>
+   <div class="frow">
+     <div class="fld" style="max-width:160px"><label>Cód. agrupador SAT</label><input id="cAg" value="${escA(c.ag)}" placeholder="105.01"></div>
+     <div class="fld" style="max-width:150px"><label>Naturaleza</label><select id="cNat"><option value="D" ${c.nat==='D'?'selected':''}>Deudora</option><option value="A" ${c.nat==='A'?'selected':''}>Acreedora</option></select></div>
+     <div class="fld" style="max-width:120px"><label>Nivel</label><input id="cNiv" type="number" min="1" max="5" value="${c.niv}"></div>
+     <div class="fld" style="max-width:170px"><label>Tipo</label><select id="cAf"><option value="1" ${c.af?'selected':''}>Afectable</option><option value="0" ${!c.af?'selected':''}>Acumulativa</option></select></div>
+   </div>
+   <div class="hint">El código agrupador debe coincidir con el Anexo 24 vigente. Consulte a su contador.</div>`;
+  modal(id?'Editar cuenta':'Nueva cuenta',body,[
+    {t:'Cancelar',act:closeModal},
+    {t:'Guardar',cls:'primary',act:()=>{
+      const o={c:$('cC').value.trim(),n:$('cN').value.trim(),ag:$('cAg').value.trim(),nat:$('cNat').value,niv:parseInt($('cNiv').value)||3,af:$('cAf').value==='1'};
+      if(!o.c||!o.n){alert('Código y nombre obligatorios.');return;}
+      if(id){const i=C.cuentas.findIndex(x=>x.id===id);C.cuentas[i]={...C.cuentas[i],...o};}
+      else{ if(C.cuentas.some(x=>x.c===o.c)){alert('Ya existe ese código.');return;} C.cuentas.push({id:'cta'+o.c+Date.now(),...o}); }
+      saveC();closeModal();refresh();
+    }}
+  ]);
+}
+function deleteCuenta(id){
+  const c=C.cuentas.find(x=>x.id===id);if(!c)return;
+  const usada=C.polizas.some(p=>p.movs.some(m=>m.cuenta===c.c));
+  if(usada){alert('No se puede eliminar: la cuenta tiene movimientos en pólizas.');return;}
+  if(!confirm('¿Eliminar cuenta '+c.c+'?'))return;
+  C.cuentas=C.cuentas.filter(x=>x.id!==id);saveC();refresh();
+}
+
+/* ============================================================
+   LIBRO MAYOR / DIARIO
+   ============================================================ */
+function cmdMayor(bar){
+  bar.appendChild(el(`<span class="sub">Auxiliar por cuenta</span>`));
+  bar.appendChild(el(`<span class="grow"></span>`));
+  const opts=cuentasAfectables().map(c=>`<option value="${escA(c.c)}" ${UI.mayorCuenta===c.c?'selected':''}>${esc(c.c)} · ${esc(c.n)}</option>`).join('');
+  const sel=el(`<select style="max-width:300px"><option value="">— Selecciona cuenta —</option>${opts}</select>`);
+  sel.addEventListener('change',e=>{UI.mayorCuenta=e.target.value;document.getElementById('mayorBox').innerHTML=mayorBox();});
+  bar.appendChild(sel);
+}
+function mayorBox(){
+  if(!UI.mayorCuenta)return `<div class="empty">Selecciona una cuenta para ver su auxiliar (mayor).</div>`;
+  const ct=cuenta(UI.mayorCuenta);
+  const rows=[];let cAc=0,aAc=0,saldo=0;
+  C.polizas.filter(p=>p.estado==='contabilizada').sort((a,b)=>(a.fecha||'').localeCompare(b.fecha||'')).forEach(p=>{
+    p.movs.forEach(m=>{ if(m.cuenta!==UI.mayorCuenta)return;
+      cAc+=Number(m.cargo)||0;aAc+=Number(m.abono)||0;
+      saldo += ct&&ct.nat==='A' ? (Number(m.abono)||0)-(Number(m.cargo)||0) : (Number(m.cargo)||0)-(Number(m.abono)||0);
+      rows.push(`<tr><td>${esc(p.fecha)}</td><td>${esc(p.folio)}</td><td>${esc(m.concepto||p.concepto)}</td>
+        <td class="num tabular">${m.cargo?'$'+money(m.cargo):''}</td><td class="num tabular">${m.abono?'$'+money(m.abono):''}</td>
+        <td class="num tabular">$${money(saldo)}</td></tr>`);
+    });
+  });
+  if(!rows.length)return `<div class="empty">Sin movimientos contabilizados en ${esc(UI.mayorCuenta)}.</div>`;
+  return `<div class="panel"><div class="hd"><h3>${esc(UI.mayorCuenta)} · ${esc(ct?ct.n:'')}</h3><span class="grow"></span><span class="bdg n">${ct&&ct.nat==='A'?'Acreedora':'Deudora'}</span></div>
+   <div class="bd flush"><table><thead><tr><th>Fecha</th><th>Folio</th><th>Concepto</th><th class="num">Cargo</th><th class="num">Abono</th><th class="num">Saldo</th></tr></thead>
+   <tbody>${rows.join('')}<tr class="total"><td colspan="3">Totales</td><td class="num tabular">$${money(cAc)}</td><td class="num tabular">$${money(aAc)}</td><td class="num tabular">$${money(saldo)}</td></tr></tbody></table></div></div>`;
+}
+function renderMayor(){return `<div id="mayorBox">${mayorBox()}</div>`;}
+
+/* ============================================================
+   BALANZA DE COMPROBACIÓN
+   ============================================================ */
+function cmdBalanza(bar){
+  bar.appendChild(el(`<span class="sub">${esc(periodoLabel())}</span>`));
+  bar.appendChild(el(`<span class="grow"></span>`));
+  const b=el(`<button class="btn"><span class="ic">⤓</span> Exportar XML (Anexo 24)</button>`);
+  b.addEventListener('click',exportBalanzaXML);bar.appendChild(b);
+}
+function balanzaData(){
+  // por cuenta afectable + acumulación a nivel agrupador
+  const cuentas=C.cuentas.slice().sort((a,b)=>a.c.localeCompare(b.c,undefined,{numeric:true}));
+  return cuentas.map(c=>{
+    const s=saldoCuenta(c.c);
+    return {...c,cargo:s.cargo,abono:s.abono,
+      saldoIni:0,
+      deudor: c.nat==='D'? Math.max(0,s.cargo-s.abono):0,
+      acreedor: c.nat==='A'? Math.max(0,s.abono-s.cargo):0,
+      saldoFin: c.nat==='A'? (s.abono-s.cargo):(s.cargo-s.abono)};
+  }).filter(r=>r.cargo||r.abono);
+}
+function renderBalanza(){
+  const d=balanzaData();
+  if(!d.length)return `<div class="empty">Sin movimientos contabilizados. Contabilice pólizas para ver la balanza.</div>`;
+  let tc=0,ta=0,tD=0,tA=0;
+  const rows=d.map(r=>{tc+=r.cargo;ta+=r.abono;tD+=r.deudor;tA+=r.acreedor;
+    return `<tr><td class="mono">${esc(r.c)}</td><td>${esc(r.n)}</td><td class="mono muted">${esc(r.ag||'')}</td>
+      <td class="num tabular">$${money(r.saldoIni)}</td>
+      <td class="num tabular">$${money(r.cargo)}</td><td class="num tabular">$${money(r.abono)}</td>
+      <td class="num tabular">${r.deudor?'$'+money(r.deudor):''}</td>
+      <td class="num tabular">${r.acreedor?'$'+money(r.acreedor):''}</td></tr>`;
+  }).join('');
+  const cuad=Math.abs(tc-ta)<0.01;
+  return `<div class="${cuad?'note g':'note r'}">${cuad?'✓ Balanza cuadrada: total cargos = total abonos.':'✗ Balanza descuadrada — revise pólizas.'}</div>
+   <div class="panel"><div class="bd flush"><table>
+    <thead><tr><th>Código</th><th>Cuenta</th><th>Cód. agrup.</th><th class="num">Saldo inicial</th><th class="num">Cargos</th><th class="num">Abonos</th><th class="num">Saldo deudor</th><th class="num">Saldo acreedor</th></tr></thead>
+    <tbody>${rows}<tr class="total"><td colspan="3">TOTALES</td><td class="num tabular">$0.00</td><td class="num tabular">$${money(tc)}</td><td class="num tabular">$${money(ta)}</td><td class="num tabular">$${money(tD)}</td><td class="num tabular">$${money(tA)}</td></tr></tbody></table></div></div>`;
+}
+
+/* ============================================================
+   ESTADO DE RESULTADOS
+   ============================================================ */
+function renderResultados(){
+  const r=calcResultado();
+  const isrTasa=0.30;
+  const isr=Math.max(0,r.utilidad)*isrTasa;
+  const neto=r.utilidad-isr;
+  function L(k,v,b,cls){return `<tr class="${b?'sub':''}"><td>${esc(k)}</td><td class="num tabular ${cls||''}">${v<0?'('+money(Math.abs(v))+')':'$'+money(v)}</td></tr>`;}
+  return `<div class="note i">Periodo: <b>${esc(periodoLabel())}</b>. ISR estimado a tasa 30% (informativo, no sustituye el cálculo fiscal anual).</div>
+  <div class="panel" style="max-width:620px"><div class="hd"><h3>Estado de Resultados</h3></div><div class="bd flush">
+   <table>
+    ${L('Ingresos por ventas y servicios',r.ingresos,true)}
+    ${L('(−) Devoluciones y descuentos',-r.devol)}
+    ${L('Ingresos netos',r.ingresos-r.devol,true)}
+    ${L('(−) Costo de venta y servicio',-r.costo)}
+    <tr class="sub"><td>Utilidad bruta</td><td class="num tabular">$${money(r.ingresos-r.devol-r.costo)}</td></tr>
+    ${L('(−) Gastos de operación',-r.gasto)}
+    ${L('(−) Resultado integral de financiamiento',-r.gf)}
+    <tr class="total"><td>Utilidad antes de impuestos</td><td class="num tabular ${r.utilidad>=0?'pos':'neg'}">$${money(r.utilidad)}</td></tr>
+    ${L('(−) ISR estimado (30%)',-isr)}
+    <tr class="total"><td>Resultado neto</td><td class="num tabular ${neto>=0?'pos':'neg'}">$${money(neto)}</td></tr>
+   </table></div></div>`;
+}
+
+/* ============================================================
+   BALANCE GENERAL
+   ============================================================ */
+function renderBalance(){
+  const activo=naturalezaSaldo('100');
+  const pasivo=naturalezaSaldo('200');
+  const res=calcResultado();
+  const capSocial=naturalezaSaldo('301');
+  const resAnt=naturalezaSaldo('305');
+  const capital=capSocial+resAnt+res.utilidad;
+  const totalPasCap=pasivo+capital;
+  const cuad=Math.abs(activo-totalPasCap)<1;
+  function fila(c){const s=naturalezaSaldo(c.c);if(Math.abs(s)<0.005)return '';return `<tr><td style="padding-left:${(c.niv-1)*14}px" class="lvl-${c.niv}">${esc(c.n)}</td><td class="num tabular">$${money(s)}</td></tr>`;}
+  const act=C.cuentas.filter(c=>c.c.charAt(0)==='1'&&c.af).map(fila).join('');
+  const pas=C.cuentas.filter(c=>c.c.charAt(0)==='2'&&c.af).map(fila).join('');
+  return `<div class="${cuad?'note g':'note w'}">${cuad?'✓ Balance cuadrado: Activo = Pasivo + Capital.':'El balance no cuadra exactamente — normal si faltan asientos de apertura/capital. Diferencia: $'+money(Math.abs(activo-totalPasCap))}</div>
+  <div class="grid2">
+   <div class="panel"><div class="hd"><h3>Activo</h3></div><div class="bd flush"><table>${act||'<tr><td class="muted" style="padding:14px">Sin saldos</td></tr>'}<tr class="total"><td>Total activo</td><td class="num tabular">$${money(activo)}</td></tr></table></div></div>
+   <div>
+     <div class="panel"><div class="hd"><h3>Pasivo</h3></div><div class="bd flush"><table>${pas||'<tr><td class="muted" style="padding:14px">Sin saldos</td></tr>'}<tr class="total"><td>Total pasivo</td><td class="num tabular">$${money(pasivo)}</td></tr></table></div></div>
+     <div class="panel"><div class="hd"><h3>Capital contable</h3></div><div class="bd flush"><table>
+       <tr><td>Capital social</td><td class="num tabular">$${money(capSocial)}</td></tr>
+       <tr><td>Resultado de ejercicios anteriores</td><td class="num tabular">$${money(resAnt)}</td></tr>
+       <tr><td>Resultado del ejercicio</td><td class="num tabular ${res.utilidad>=0?'pos':'neg'}">$${money(res.utilidad)}</td></tr>
+       <tr class="total"><td>Total capital</td><td class="num tabular">$${money(capital)}</td></tr>
+       <tr class="total"><td>Pasivo + Capital</td><td class="num tabular">$${money(totalPasCap)}</td></tr></table></div></div>
+   </div>
+  </div>`;
+}
+
+/* ============================================================
+   CFDI 4.0
+   ============================================================ */
+function cmdCfdi(bar){
+  bar.appendChild(el(`<span class="sub">Comprobante Fiscal Digital por Internet v4.0</span>`));
+  bar.appendChild(el(`<span class="grow"></span>`));
+  const b=el(`<button class="btn primary"><span class="ic">＋</span> Nuevo CFDI</button>`);
+  b.addEventListener('click',()=>openCfdi());bar.appendChild(b);
+}
+function renderCfdi(){
+  let h=`<div class="note w">El <b>timbrado</b> (asignación de UUID/folio fiscal y sello del SAT) requiere un <b>PAC autorizado</b> y el <b>CSD</b> de la empresa, mediante backend. Aquí se captura y se genera el <b>XML CFDI 4.0 pre-timbrado</b> listo para enviar al PAC.</div>`;
+  if(!C.cfdis.length){return h+`<div class="empty">Sin CFDI. Cree uno o emítalo desde una venta del ERP.</div>`;}
+  h+=`<div class="panel"><div class="bd flush"><table><thead><tr><th>Serie-Folio</th><th>Fecha</th><th>Receptor</th><th>Uso</th><th class="num">Subtotal</th><th class="num">Total</th><th>Estatus</th><th></th></tr></thead><tbody>`;
+  C.cfdis.slice().reverse().forEach(f=>{
+    h+=`<tr><td class="mono">${esc((f.serie||'A')+'-'+f.folio)}</td><td>${esc(f.fecha)}</td>
+      <td>${esc(f.recNombre)}<br><span class="muted mono">${esc(f.recRfc)}</span></td>
+      <td class="mono">${esc(f.usoCfdi)}</td><td class="num tabular">$${money(f.subtotal)}</td><td class="num tabular">$${money(f.total)}</td>
+      <td>${f.estatus==='timbrado'?'<span class="bdg g">Timbrado</span>':'<span class="bdg a">Pre-timbrado</span>'}</td>
+      <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-cfxml="${escA(f.id)}">Ver XML</button> <button class="btn sm" data-cfedit="${escA(f.id)}">Abrir</button> <button class="btn sm danger" data-cfdel="${escA(f.id)}">✕</button></td></tr>`;
+  });
+  h+=`</tbody></table></div></div>`;
+  return h;
+}
+function openCfdi(id){
+  const es=erpState();
+  const f=id?C.cfdis.find(x=>x.id===id):{id:'',serie:'A',folio:String(C.nextId.f),fecha:todayISO(),
+    recRfc:'',recNombre:'',recCp:'',recRegimen:'601',usoCfdi:'G03',formaPago:'03',metodoPago:'PUE',
+    conceptos:[{desc:'Servicio de reciclaje',clave:'80141600',unidad:'E48',cant:1,vu:0}],estatus:'pre'};
+  const cliOpts=(es&&es.clientes||[]).map(c=>`<option value="${escA(c.nombre)}">${esc(c.nombre)}</option>`).join('');
+  const body=`
+   <div class="frow">
+     <div class="fld" style="max-width:90px"><label>Serie</label><input id="fSerie" value="${escA(f.serie)}"></div>
+     <div class="fld" style="max-width:110px"><label>Folio</label><input id="fFolio" value="${escA(f.folio)}"></div>
+     <div class="fld" style="max-width:160px"><label>Fecha</label><input type="date" id="fFecha" value="${escA(f.fecha)}"></div>
+     <div class="fld" style="max-width:170px"><label>Forma de pago</label><select id="fForma">${FORMA_PAGO.map(x=>`<option value="${x[0]}" ${f.formaPago===x[0]?'selected':''}>${x[0]} · ${esc(x[1])}</option>`).join('')}</select></div>
+     <div class="fld" style="max-width:200px"><label>Método de pago</label><select id="fMetodo">${METODO_PAGO.map(x=>`<option value="${x[0]}" ${f.metodoPago===x[0]?'selected':''}>${x[0]} · ${esc(x[1])}</option>`).join('')}</select></div>
+   </div>
+   <div class="panel" style="box-shadow:none"><div class="hd"><h3>Receptor</h3></div><div class="bd">
+     <div class="frow">
+       <div class="fld"><label>RFC</label><input id="fRfc" value="${escA(f.recRfc)}" placeholder="XAXX010101000"></div>
+       <div class="fld" style="flex:2"><label>Nombre / razón social</label><input id="fNom" list="cliList" value="${escA(f.recNombre)}"><datalist id="cliList">${cliOpts}</datalist></div>
+       <div class="fld" style="max-width:120px"><label>CP fiscal</label><input id="fCp" value="${escA(f.recCp)}"></div>
+     </div>
+     <div class="frow">
+       <div class="fld"><label>Régimen fiscal receptor</label><select id="fReg">${REGIMENES_SAT.map(x=>`<option value="${x[0]}" ${f.recRegimen===x[0]?'selected':''}>${x[0]} · ${esc(x[1])}</option>`).join('')}</select></div>
+       <div class="fld"><label>Uso CFDI</label><select id="fUso">${USO_CFDI.map(x=>`<option value="${x[0]}" ${f.usoCfdi===x[0]?'selected':''}>${x[0]} · ${esc(x[1])}</option>`).join('')}</select></div>
+     </div>
+   </div></div>
+   <div class="panel" style="box-shadow:none"><div class="hd"><h3>Conceptos</h3><span class="grow"></span><button class="btn sm" id="addCon">＋ Concepto</button></div>
+   <div class="bd flush"><table><thead><tr><th>ClaveProdServ</th><th>Descripción</th><th>Unidad</th><th class="num">Cant.</th><th class="num">Valor unit.</th><th class="num">Importe</th><th></th></tr></thead><tbody id="conRows"></tbody></table></div></div>
+   <div id="cfTot" style="margin-top:14px"></div>`;
+  modal(id?'CFDI '+(f.serie+'-'+f.folio):'Nuevo CFDI 4.0',body,[
+    {t:'Cancelar',act:closeModal},
+    {t:'Guardar (pre-timbrado)',cls:'primary',act:()=>saveCfdi(id)}
+  ],true);
+  const tb=$('conRows');
+  function addCon(c){
+    const r=el(`<tr class="movrow">
+      <td><input class="c-clave mono" value="${escA(c.clave||'')}" style="width:120px"></td>
+      <td><input class="c-desc" value="${escA(c.desc||'')}"></td>
+      <td><select class="c-uni" style="width:130px">${CLAVE_UNIDAD.map(u=>`<option value="${u[0]}" ${c.unidad===u[0]?'selected':''}>${u[0]} ${esc(u[1])}</option>`).join('')}</select></td>
+      <td><input class="c-cant num tabular" type="number" step="0.01" value="${c.cant||1}" style="width:80px;text-align:right"></td>
+      <td><input class="c-vu num tabular" type="number" step="0.01" value="${c.vu||0}" style="width:110px;text-align:right"></td>
+      <td class="num tabular c-imp">$0.00</td>
+      <td><button class="btn sm danger">✕</button></td></tr>`);
+    r.querySelector('.btn.danger').addEventListener('click',()=>{r.remove();cfRecalc();});
+    r.querySelectorAll('input,select').forEach(i=>i.addEventListener('input',cfRecalc));
+    tb.appendChild(r);
+  }
+  (f.conceptos||[]).forEach(addCon);
+  $('addCon').addEventListener('click',()=>{addCon({desc:'',clave:'',unidad:'E48',cant:1,vu:0});cfRecalc();});
+  function cfRecalc(){
+    let sub=0;
+    tb.querySelectorAll('.movrow').forEach(r=>{
+      const imp=(parseFloat(r.querySelector('.c-cant').value)||0)*(parseFloat(r.querySelector('.c-vu').value)||0);
+      r.querySelector('.c-imp').textContent='$'+money(imp);sub+=imp;
+    });
+    const ivaR=C.config.ivaTasa/100;
+    const iva=+(sub*ivaR).toFixed(2);
+    // retención IVA reciclaje (compra de desperdicios) — aplica como retención del receptor; informativo
+    const total=+(sub+iva).toFixed(2);
+    $('cfTot').innerHTML=`<div class="kpi-row">
+      <div class="kpi"><div class="kk">Subtotal</div><div class="kv">$${money(sub)}</div></div>
+      <div class="kpi"><div class="kk">IVA trasladado ${C.config.ivaTasa}%</div><div class="kv">$${money(iva)}</div></div>
+      <div class="kpi"><div class="kk">Total</div><div class="kv">$${money(total)}</div></div></div>`;
+  }
+  cfRecalc();
+}
+function saveCfdi(id){
+  const conceptos=[];
+  document.querySelectorAll('#conRows .movrow').forEach(r=>{
+    const desc=r.querySelector('.c-desc').value.trim();
+    const cant=parseFloat(r.querySelector('.c-cant').value)||0;
+    const vu=parseFloat(r.querySelector('.c-vu').value)||0;
+    if(desc&&cant>0)conceptos.push({clave:r.querySelector('.c-clave').value.trim()||'01010101',desc,unidad:r.querySelector('.c-uni').value,cant,vu});
+  });
+  if(!conceptos.length){alert('Agregue al menos un concepto.');return;}
+  const rfc=$('fRfc').value.trim().toUpperCase();
+  if(!rfc){alert('RFC del receptor obligatorio.');return;}
+  const sub=conceptos.reduce((a,c)=>a+c.cant*c.vu,0);
+  const iva=+(sub*C.config.ivaTasa/100).toFixed(2);
+  const o={serie:$('fSerie').value.trim()||'A',folio:$('fFolio').value.trim(),fecha:$('fFecha').value,
+    formaPago:$('fForma').value,metodoPago:$('fMetodo').value,
+    recRfc:rfc,recNombre:$('fNom').value.trim(),recCp:$('fCp').value.trim(),recRegimen:$('fReg').value,usoCfdi:$('fUso').value,
+    conceptos,subtotal:+sub.toFixed(2),iva,total:+(sub+iva).toFixed(2),estatus:'pre'};
+  if(id){const i=C.cfdis.findIndex(x=>x.id===id);C.cfdis[i]={...C.cfdis[i],...o};}
+  else{C.cfdis.push({id:cid('f'),...o});C.nextId.f++;}
+  saveC();closeModal();refresh();
+}
+function cfdiXML(f){
+  const cfg=C.config;
+  const lineas=f.conceptos.map(c=>{
+    const imp=(c.cant*c.vu).toFixed(2);
+    return `    <cfdi:Concepto ClaveProdServ="${escA(c.clave)}" Cantidad="${c.cant}" ClaveUnidad="${escA(c.unidad)}" Descripcion="${escA(c.desc)}" ValorUnitario="${c.vu.toFixed(2)}" Importe="${imp}" ObjetoImp="02">
+      <cfdi:Impuestos>
+        <cfdi:Traslados>
+          <cfdi:Traslado Base="${imp}" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="${(c.cant*c.vu*cfg.ivaTasa/100).toFixed(2)}"/>
+        </cfdi:Traslados>
+      </cfdi:Impuestos>
+    </cfdi:Concepto>`;}).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<cfdi:Comprobante xmlns:cfdi="http://www.sat.gob.mx/cfd/4" Version="4.0"
+  Serie="${escA(f.serie)}" Folio="${escA(f.folio)}" Fecha="${escA(f.fecha)}T12:00:00"
+  Moneda="MXN" SubTotal="${f.subtotal.toFixed(2)}" Total="${f.total.toFixed(2)}"
+  TipoDeComprobante="I" Exportacion="01" MetodoPago="${escA(f.metodoPago)}" FormaPago="${escA(f.formaPago)}"
+  LugarExpedicion="${escA(cfg.cp||'00000')}" NoCertificado="________________ (CSD pendiente)">
+  <cfdi:Emisor Rfc="${escA(cfg.rfc||'________')}" Nombre="${escA(cfg.razon||'')}" RegimenFiscal="${escA(cfg.regimen)}"/>
+  <cfdi:Receptor Rfc="${escA(f.recRfc)}" Nombre="${escA(f.recNombre)}" DomicilioFiscalReceptor="${escA(f.recCp)}" RegimenFiscalReceptor="${escA(f.recRegimen)}" UsoCFDI="${escA(f.usoCfdi)}"/>
+  <cfdi:Conceptos>
+${lineas}
+  </cfdi:Conceptos>
+  <cfdi:Impuestos TotalImpuestosTrasladados="${f.iva.toFixed(2)}">
+    <cfdi:Traslados>
+      <cfdi:Traslado Base="${f.subtotal.toFixed(2)}" Impuesto="002" TipoFactor="Tasa" TasaOCuota="0.160000" Importe="${f.iva.toFixed(2)}"/>
+    </cfdi:Traslados>
+  </cfdi:Impuestos>
+  <!-- Sello, NoCertificado, Certificado y TimbreFiscalDigital los agrega el PAC al timbrar -->
+</cfdi:Comprobante>`;
+}
+function verCfdiXML(id){
+  const f=C.cfdis.find(x=>x.id===id);if(!f)return;
+  modal('XML CFDI 4.0 — '+(f.serie+'-'+f.folio),
+    `<div class="note w">XML <b>pre-timbrado</b>. Falta Sello/Certificado/TimbreFiscalDigital que añade el PAC.</div><code class="xml">${esc(cfdiXML(f))}</code>`,
+    [{t:'Descargar .xml',cls:'primary',act:()=>download((f.serie+'-'+f.folio)+'.xml',cfdiXML(f),'application/xml')},{t:'Cerrar',act:closeModal}],true);
+}
+
+/* ============================================================
+   IVA / DIOT
+   ============================================================ */
+function renderIva(){
+  const iva=ivaResumen();
+  const es=erpState();
+  // DIOT simplificada: proveedores desde compradores/clientes no aplica; usamos acreedores de pólizas
+  let h=`<div class="kpi-row">
+    <div class="kpi"><div class="kk">IVA trasladado (ventas)</div><div class="kv pos">$${money(iva.trasladado)}</div></div>
+    <div class="kpi"><div class="kk">IVA acreditable (compras)</div><div class="kv">$${money(iva.acreditable)}</div></div>
+    <div class="kpi"><div class="kk">${iva.porPagar>=0?'IVA por pagar':'IVA a favor'}</div><div class="kv ${iva.porPagar>=0?'neg':'pos'}">$${money(Math.abs(iva.porPagar))}</div></div>
+  </div>
+  <div class="note i"><b>Retención de IVA por reciclaje (Art. 1-A LIVA, fracc. II):</b> al adquirir desperdicios destinados a reciclaje, la empresa (persona moral) <b>retiene</b> el IVA al proveedor y lo entera. Configure el % en Configuración (actual: ${C.config.retIvaReciclajePct}%). ${C.config.retIvaReciclaje?'<span class="bdg g">Activa</span>':'<span class="bdg n">Inactiva</span>'}</div>`;
+  // DIOT por cuenta de proveedores/acreedores
+  const provs=[];
+  C.polizas.filter(p=>p.estado==='contabilizada').forEach(p=>p.movs.forEach(m=>{
+    if(m.cuenta.indexOf('201')===0||m.cuenta.indexOf('205')===0){
+      provs.push({concepto:m.concepto||p.concepto,fecha:p.fecha,monto:Number(m.abono)||0});
+    }
+  }));
+  const totProv=provs.reduce((a,x)=>a+x.monto,0);
+  h+=`<div class="panel"><div class="hd"><h3>DIOT — Operaciones con proveedores (resumen)</h3><span class="grow"></span><span class="bdg n">Provisional</span></div><div class="bd flush"><table>
+   <thead><tr><th>Fecha</th><th>Concepto</th><th class="num">Monto</th></tr></thead><tbody>
+   ${provs.length?provs.map(x=>`<tr><td>${esc(x.fecha)}</td><td>${esc(x.concepto)}</td><td class="num tabular">$${money(x.monto)}</td></tr>`).join(''):'<tr><td colspan=3><div class="empty">Sin operaciones con proveedores registradas.</div></td></tr>'}
+   ${provs.length?`<tr class="total"><td colspan="2">Total</td><td class="num tabular">$${money(totProv)}</td></tr>`:''}
+   </tbody></table></div></div>
+   <div class="hint">La DIOT real requiere RFC, tipo de tercero y desglose de IVA por tasa por proveedor. Este resumen es base para integrarla con backend.</div>`;
+  return h;
+}
+
+/* ============================================================
+   CONTABILIDAD ELECTRÓNICA (Anexo 24)
+   ============================================================ */
+function renderEconta(){
+  return `<div class="note i">Genera los archivos XML conforme al <b>Anexo 24</b> de la RMF: <b>Catálogo de cuentas</b> y <b>Balanza de comprobación</b> mensual. El envío al SAT (Buzón Tributario) se realiza fuera de esta herramienta.</div>
+  <div class="grid2">
+    <div class="panel"><div class="hd"><h3>Catálogo de cuentas (XML)</h3></div><div class="bd">
+      <p class="muted" style="margin-bottom:12px">Esquema: <code class="mono">catalogocuentas 1.3</code>. Incluye código agrupador SAT, naturaleza y nivel.</p>
+      <button class="btn primary" id="dlCat"><span class="ic">⤓</span> Descargar Catálogo XML</button></div></div>
+    <div class="panel"><div class="hd"><h3>Balanza de comprobación (XML)</h3></div><div class="bd">
+      <p class="muted" style="margin-bottom:12px">Esquema: <code class="mono">BalanzaComprobacion 1.3</code>. Tipo "N" (normal), periodo del ejercicio.</p>
+      <button class="btn primary" id="dlBal"><span class="ic">⤓</span> Descargar Balanza XML</button></div></div>
+  </div>
+  <div class="panel"><div class="hd"><h3>Vista previa — Catálogo</h3></div><div class="bd"><code class="xml">${esc(catalogoXML())}</code></div></div>`;
+}
+function catalogoXML(){
+  const cfg=C.config;
+  const rows=C.cuentas.map(c=>`  <catalogocuentas:Ctas CodAgrup="${escA(c.ag||c.c)}" NumCta="${escA(c.c)}" Desc="${escA(c.n)}" Nivel="${c.niv}" Natur="${c.nat}"/>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<catalogocuentas:Catalogo xmlns:catalogocuentas="http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/CatalogoCuentas"
+  Version="1.3" RFC="${escA(cfg.rfc||'________')}" Mes="01" Anio="${cfg.ejercicio}">
+${rows}
+</catalogocuentas:Catalogo>`;
+}
+function balanzaXML(){
+  const cfg=C.config;const d=balanzaData();
+  const rows=d.map(r=>`  <BCE:Ctas NumCta="${escA(r.c)}" SaldoIni="0.00" Debe="${r.cargo.toFixed(2)}" Haber="${r.abono.toFixed(2)}" SaldoFin="${Math.abs(r.saldoFin).toFixed(2)}"/>`).join('\n');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<BCE:Balanza xmlns:BCE="http://www.sat.gob.mx/esquemas/ContabilidadE/1_3/BalanzaComprobacion"
+  Version="1.3" RFC="${escA(cfg.rfc||'________')}" Mes="01" Anio="${cfg.ejercicio}" TipoEnvio="N">
+${rows}
+</BCE:Balanza>`;
+}
+function exportBalanzaXML(){download('Balanza_'+C.config.ejercicio+'.xml',balanzaXML(),'application/xml');}
+
+/* ============================================================
+   CONFIGURACIÓN
+   ============================================================ */
+function cmdConfigBar(bar){bar.appendChild(el(`<span class="sub">Datos fiscales y parámetros</span>`));}
+function fiscalConfigOk(){return !!(C.config.rfc&&C.config.razon&&C.config.regimen);}
+function renderConfig(){
+  const c=C.config;
+  return `<div class="grid2">
+   <div>
+    <div class="panel"><div class="hd"><h3>Datos fiscales de la empresa</h3></div><div class="bd">
+      <div class="frow">
+        <div class="fld"><label>RFC</label><input id="gRfc" value="${escA(c.rfc)}" placeholder="ABC010101AB1"></div>
+        <div class="fld" style="flex:2"><label>Razón social</label><input id="gRazon" value="${escA(c.razon)}"></div>
+      </div>
+      <div class="frow">
+        <div class="fld"><label>Régimen fiscal</label><select id="gReg">${REGIMENES_SAT.map(x=>`<option value="${x[0]}" ${c.regimen===x[0]?'selected':''}>${x[0]} · ${esc(x[1])}</option>`).join('')}</select></div>
+        <div class="fld" style="max-width:150px"><label>CP (lugar exp.)</label><input id="gCp" value="${escA(c.cp)}"></div>
+        <div class="fld" style="max-width:140px"><label>Ejercicio</label><input id="gEj" type="number" value="${c.ejercicio}"></div>
+      </div>
+      <button class="btn primary" id="saveCfg">Guardar configuración</button>
+    </div></div>
+    <div class="panel"><div class="hd"><h3>Parámetros de impuestos</h3></div><div class="bd">
+      <div class="frow">
+        <div class="fld" style="max-width:160px"><label>Tasa IVA general (%)</label><input id="gIva" type="number" step="0.01" value="${c.ivaTasa}"></div>
+        <div class="fld" style="max-width:220px"><label>Retención IVA reciclaje</label><select id="gRet"><option value="1" ${c.retIvaReciclaje?'selected':''}>Activa</option><option value="0" ${!c.retIvaReciclaje?'selected':''}>Inactiva</option></select></div>
+        <div class="fld" style="max-width:200px"><label>% retención reciclaje</label><input id="gRetP" type="number" step="0.01" value="${c.retIvaReciclajePct}"></div>
+      </div>
+      <div class="hint">Art. 1-A LIVA: la persona moral que adquiere desperdicios para reciclar retiene el IVA. Verifique el porcentaje vigente con su contador.</div>
+    </div></div>
+   </div>
+   <div>
+     <div class="panel"><div class="hd"><h3>Datos</h3></div><div class="bd">
+       <button class="btn" id="expC" style="width:100%;justify-content:center;margin-bottom:8px"><span class="ic">⤓</span> Respaldar contabilidad (.json)</button>
+       <input type="file" id="impC" accept=".json" style="margin-bottom:8px">
+       <button class="btn" id="doImp" style="width:100%;justify-content:center;margin-bottom:14px">Restaurar respaldo</button>
+       <button class="btn danger" id="wipeC" style="width:100%;justify-content:center">Borrar todos los datos contables</button>
+       <div class="hint" style="margin-top:10px">La data del ERP (lotes, ventas, clientes) no se toca: se lee de su propio almacenamiento.</div>
+     </div></div>
+     <div class="panel"><div class="hd"><h3>Estado de integración ERP</h3></div><div class="bd">
+       ${erpState()?'<div class="note g" style="margin:0">✓ <b>erp_state</b> detectado · '+((erpState().lotes||[]).length)+' lotes, '+((erpState().clientes||[]).length)+' clientes</div>':'<div class="note r" style="margin:0">✗ No se encontró erp_state</div>'}
+       ${prodState()?'<div class="note g" style="margin:8px 0 0">✓ <b>erp_prod_state</b> · '+((prodState().salesOrders||[]).length)+' ventas registradas</div>':'<div class="note w" style="margin:8px 0 0">erp_prod_state no encontrado (sin ventas aún)</div>'}
+     </div></div>
+   </div>
+  </div>`;
+}
+function cmdReport(bar){bar.appendChild(el(`<span class="sub">${esc(periodoLabel())}</span>`));}
+
+/* ============================================================
+   UTILIDADES
+   ============================================================ */
+function download(name,content,mime){
+  const b=new Blob([content],{type:mime||'text/plain'});const u=URL.createObjectURL(b);
+  const a=document.createElement('a');a.href=u;a.download=name;a.click();URL.revokeObjectURL(u);
+}
+
+/* ============================================================
+   DELEGACIÓN DE EVENTOS (sin event global; data-attrs)
+   ============================================================ */
+document.addEventListener('click',function(e){
+  const t=e.target.closest('[data-nav],[data-go],[data-gen],[data-edit],[data-post],[data-unpost],[data-delp],[data-edcta],[data-delcta],[data-cfxml],[data-cfedit],[data-cfdel]');
+  if(!t)return;
+  if(t.dataset.nav)return nav(t.dataset.nav);
+  if(t.dataset.go)return nav(t.dataset.go);
+  if(t.dataset.gen)return generarUna(t.dataset.gen);
+  if(t.dataset.edit)return openPoliza(t.dataset.edit);
+  if(t.dataset.post)return postPoliza(t.dataset.post);
+  if(t.dataset.unpost)return unpostPoliza(t.dataset.unpost);
+  if(t.dataset.delp)return deletePoliza(t.dataset.delp);
+  if(t.dataset.edcta)return openCuenta(t.dataset.edcta);
+  if(t.dataset.delcta)return deleteCuenta(t.dataset.delcta);
+  if(t.dataset.cfxml)return verCfdiXML(t.dataset.cfxml);
+  if(t.dataset.cfedit)return openCfdi(t.dataset.cfedit);
+  if(t.dataset.cfdel){if(confirm('¿Eliminar CFDI?')){C.cfdis=C.cfdis.filter(x=>x.id!==t.dataset.cfdel);saveC();refresh();}return;}
+});
+// handlers de configuración (delegados por id, tras render)
+document.addEventListener('click',function(e){
+  const id=e.target.id;
+  if(id==='saveCfg'){
+    C.config.rfc=$('gRfc').value.trim().toUpperCase();C.config.razon=$('gRazon').value.trim();
+    C.config.regimen=$('gReg').value;C.config.cp=$('gCp').value.trim();C.config.ejercicio=parseInt($('gEj').value)||C.config.ejercicio;
+    C.config.ivaTasa=parseFloat($('gIva').value)||16;C.config.retIvaReciclaje=$('gRet').value==='1';C.config.retIvaReciclajePct=parseFloat($('gRetP').value)||8;
+    saveC();updateTopbar();alert('Configuración guardada.');refresh();
+  }
+  if(id==='expC')download('contabilidad_'+todayISO()+'.json',JSON.stringify(C,null,2),'application/json');
+  if(id==='wipeC'){if(confirm('Borra TODA la contabilidad (pólizas, CFDI, catálogo). El ERP no se afecta. ¿Continuar?')){localStorage.removeItem(LS_KEY);location.reload();}}
+  if(id==='doImp'){
+    const f=$('impC').files[0];if(!f){alert('Seleccione un archivo.');return;}
+    if(!confirm('Reemplaza la contabilidad actual. ¿Continuar?'))return;
+    const rd=new FileReader();rd.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(!d.cuentas){alert('Archivo inválido.');return;}C=d;saveC();updateTopbar();refresh();alert('Restaurado.');}catch(err){alert('Error: '+err);}};rd.readAsText(f);
+  }
+  if(id==='dlCat')download('Catalogo_'+C.config.ejercicio+'.xml',catalogoXML(),'application/xml');
+  if(id==='dlBal')exportBalanzaXML();
+});
+
+$('burger').addEventListener('click',()=>$('app').classList.toggle('rail-open'));
+$('logoutBtn').addEventListener('click',()=>{localStorage.removeItem('erp_session');window.location.href='index.html';});
+
+function updateTopbar(){
+  $('razon-top').textContent=C.config.razon?('— '+C.config.razon+(C.config.rfc?' · '+C.config.rfc:'')):'— configurar empresa';
+  $('periodo-top').textContent='Ejercicio '+C.config.ejercicio;
+}
+// sincronización entre pestañas (lección del review del ERP)
+window.addEventListener('storage',function(e){
+  if(e.key===LS_KEY){loadC();updateTopbar();refresh();}
+  if(e.key==='erp_state'||e.key==='erp_prod_state'){ if(['tablero','erpgen'].includes(UI.page))refresh(); }
+});
+
+/* ============================================================
+   AUTENTICACIÓN (igual que el ERP — sesión en localStorage)
+   ============================================================ */
+(function auth(){
+  try{
+    const s=localStorage.getItem('erp_session');
+    if(s){const ss=JSON.parse(s);$('who').textContent=ss.nombre||ss.username||'';}
+    else $('who').textContent='(sin sesión)';
+  }catch(e){$('who').textContent='';}
+})();
+
+/* ============================================================
+   ARRANQUE
+   ============================================================ */
+loadC();updateTopbar();nav('tablero');
+
+})();
+</script>
+</body>
+</html>
