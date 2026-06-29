@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Portal del Cliente</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-data.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f8f4;color:#1a1a1a;font-size:14px}
@@ -96,16 +98,7 @@ tr:last-child td{border-bottom:none}
 </div>
 
 <script>
-function checkAuth(){
-  const s=localStorage.getItem('erp_session');
-  if(!s){window.location.href='index.html';return null;}
-  const sess=JSON.parse(s);
-  if(sess.role!=='cliente'){window.location.href='index.html';return null;}
-  return sess;
-}
-function logout(){localStorage.removeItem('erp_session');window.location.href='index.html';}
-function getState(){try{return JSON.parse(localStorage.getItem('erp_state')||'{}');}catch(e){return{};}}
-function getProdState(){try{return JSON.parse(localStorage.getItem('erp_prod_state')||'{}');}catch(e){return{};}}
+async function logout(){ await DB.logout(); window.location.href='index.html'; }
 function showTab(id){
   document.querySelectorAll('.sec').forEach(s=>s.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
@@ -129,7 +122,6 @@ function calcHuella(loteId,st){
 }
 function fmt(n){return n>=1000?`${(n/1000).toFixed(1)}k`:n.toFixed(1);}
 
-// Resuelve la ubicación de recibo del lote a un string legible
 function resolverUbicacion(lote,cliente){
   if(!lote)return'';
   const ubicId=lote.ubicacionId;
@@ -142,14 +134,46 @@ function resolverUbicacion(lote,cliente){
   return partes.join(' — ');
 }
 
-function renderPortal(){
-  const sess=checkAuth();if(!sess)return;
-  document.getElementById('cliente-name').textContent=sess.nombre;
-  const st=getState();const pst=getProdState();
-  const cliente=(st.clientes||[]).find(c=>c.id===sess.clienteId);
+// ── CARGA DESDE SUPABASE ──────────────────────────────────
+// La RLS ya limita cada SELECT a los datos del propio cliente; los .eq()
+// son por claridad/rendimiento. Reensambla los objetos st/pst con la MISMA
+// forma que antes tenían en localStorage, para no tocar el render.
+async function fetchData(clienteId){
+  const [clientesRows,lotesRows,catRows]=await Promise.all([
+    DB.selectAll('clientes',{id:clienteId}),
+    DB.selectAll('lotes',{cliente_id:clienteId,finalizado:true}),
+    DB.selectAll('catalogos')
+  ]);
+  const [cierresRows,recibosRows,assetsRows]=await Promise.all([
+    DB.selectAll('cierres',{cliente_id:clienteId}),
+    DB.selectAll('recibos',{cliente_id:clienteId}),
+    DB.selectAll('assets',{cliente_id:clienteId})
+  ]);
+  const catMap={};catRows.forEach(r=>catMap[r.key]=r.data);
+  const st={
+    clientes:clientesRows.map(r=>({...r.data,id:r.id})),
+    lotes:lotesRows.map(r=>({...r.data,id:r.id,clienteId:r.cliente_id,finalizado:r.finalizado})),
+    cierres:Object.fromEntries(cierresRows.map(r=>[r.lote_id,r.data])),
+    recibos:Object.fromEntries(recibosRows.map(r=>[r.lote_id,r.data])),
+    categorias:catMap.categorias||[],
+    catalogoCierre:catMap.catalogoCierre||[],
+    commoditiesCierre:catMap.commoditiesCierre||[]
+  };
+  const pst={assets:assetsRows.map(r=>({...r.data,id:r.id,loteId:r.lote_id}))};
+  return{st,pst};
+}
+
+let __sess=null;
+
+async function renderPortal(){
+  if(!__sess)return;
+  const sess=__sess;
+  const {st,pst}=await fetchData(sess.clienteId);
+  const cliente=st.clientes.find(c=>c.id===sess.clienteId);
+  document.getElementById('cliente-name').textContent=sess.nombre||'';
   if(cliente)document.getElementById('portal-title').textContent=`Reporte — ${cliente.nombre}`;
 
-  const lotes=(st.lotes||[]).filter(l=>l.clienteId===sess.clienteId&&l.finalizado);
+  const lotes=st.lotes; // ya vienen finalizados y del cliente
 
   // ── AMBIENTAL ──
   if(!lotes.length){
@@ -168,7 +192,6 @@ function renderPortal(){
       <div class="metric green-card"><div class="label">Lotes finalizados</div><div class="value">${lotes.length}</div></div>
       <div class="metric green-card"><div class="label">Kg reciclados</div><div class="value">${fmt(totKg)}</div><div class="unit">kilogramos</div></div>`;
 
-    // Individual lotes
     const lotesHtml=lotes.map(l=>{
       const cierre=st.cierres&&st.cierres[l.id];
       const recibo=(st.recibos||{})[l.id];
@@ -195,8 +218,7 @@ function renderPortal(){
   }
 
   // ── ASSETS ──
-  const loteIds=lotes.map(l=>l.id);
-  const assets=(pst.assets||[]).filter(a=>loteIds.includes(a.loteId));
+  const assets=pst.assets||[];
   const cats=st.categorias||[];
   const total=assets.length;
   const reventa=assets.filter(a=>a.destino==='Reventa').length;
@@ -210,7 +232,7 @@ function renderPortal(){
   if(!assets.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:32px;color:#888">Sin activos registrados aún.</td></tr>';return;}
   tb.innerHTML=assets.map(a=>{
     const cat=cats.find(x=>x.id===a.catId);
-    const lote=(st.lotes||[]).find(x=>x.id===a.loteId);
+    const lote=st.lotes.find(x=>x.id===a.loteId);
     const destEl=a.destino==='Reventa'?'<span class="dest-reventa">Reventa</span>':'<span class="dest-scrap">Scrap</span>';
     return`<tr>
       <td><strong>A-${String(a.num).padStart(7,'0')}</strong></td>
@@ -225,16 +247,17 @@ function renderPortal(){
   }).join('');
 }
 
-renderPortal();
-
-// Sincronización entre pestañas: si el admin/producción cambian los datos
-// mientras el cliente tiene el portal abierto, se refresca. Si se cierra sesión
-// en otra pestaña, también se cierra aquí. El portal es solo lectura: no escribe.
-window.addEventListener('storage',function(e){
-  if(!e.key)return;
-  if(e.key==='erp_session'){ if(!e.newValue)window.location.href='index.html'; return; }
-  if(e.key==='erp_state'||e.key==='erp_prod_state')renderPortal();
-});
+// ── ARRANQUE ──────────────────────────────────────────────
+async function init(){
+  const sess=await DB.getSession();
+  if(!sess){window.location.href='index.html';return;}
+  if(sess.profile.role!=='cliente'){window.location.href='index.html';return;}
+  __sess={nombre:sess.profile.nombre,clienteId:sess.profile.cliente_id};
+  await renderPortal();
+  // Realtime: si producción/admin cambian datos, el portal se refresca solo.
+  DB.subscribe(['lotes','cierres','recibos','assets','catalogos'],()=>renderPortal());
+}
+init();
 </script>
 </body>
 </html>
