@@ -100,6 +100,8 @@ tr:hover td{background:#fafaf8}
 @keyframes prefill{from{background:#fffbe8}to{background:#fff}}
 .prefilled{animation:prefill 1.5s ease-out}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-data.js"></script>
 </head>
 <body>
 <div class="app">
@@ -797,12 +799,67 @@ function validarRFC(rfc){
   return /^[A-ZÑ&]{3,4}[0-9]{2}(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])[A-Z0-9]{2}[0-9A]$/.test(r);
 }
 
-// ── STATE FROM SHARED localStorage ───────────────────────
-function getAdminState(){
-  try{const r=localStorage.getItem('erp_state');return r?JSON.parse(r):null;}catch(e){return null;}
+// ── ESTADO ADMIN COMPARTIDO (cache en memoria desde Supabase) ──
+// getAdminState() devuelve un cache SÍNCRONO para no volver async las decenas de
+// vistas que lo leen. Se hidrata al arranque y por realtime (ver init al final).
+let __adminState=null,__adminSnap=null;
+const ADMIN_CATALOGS=['commodities','commoditiesCierre','hoes','catalogoCierre','categorias',
+  'itemsFuncionales','refacciones','tiposServicio','operadoresEOL','operadoresARS','inhabiles','config','diasEOL','diasARS'];
+function __clone(o){return JSON.parse(JSON.stringify(o));}
+function __eq(a,b){return JSON.stringify(a)===JSON.stringify(b);}
+function __diffArr(ops,table,cur,prev,rowFor){
+  const pById={};(prev||[]).forEach(x=>pById[x.id]=x);const ids=new Set();
+  cur.forEach(it=>{ids.add(it.id);const p=pById[it.id];if(!p||!__eq(p,it))ops.push(['u',table,rowFor(it)]);});
+  (prev||[]).forEach(p=>{if(!ids.has(p.id))ops.push(['r',table,'id',p.id]);});
 }
+function __diffMap(ops,table,cur,prev,rowFor){
+  cur=cur||{};prev=prev||{};
+  for(const k of Object.keys(cur)){if(!__eq(prev[k],cur[k]))ops.push(['u',table,rowFor(k,cur[k])]);}
+  for(const k of Object.keys(prev)){if(!(k in cur))ops.push(['r',table,'lote_id',k]);}
+}
+let __chain=Promise.resolve();
+function adminSlice(st){return{clientes:st.clientes||[],lotes:st.lotes||[],recibos:st.recibos||{},
+  costeos:st.costeos||{},cierres:st.cierres||{},catalogos:Object.fromEntries(ADMIN_CATALOGS.map(k=>[k,st[k]]))};}
+function __adminLoteCliente(st,loteId){const l=(st.lotes||[]).find(x=>x.id===loteId);return l?l.clienteId:null;}
+async function hydrateAdminState(){
+  const [clientesRows,lotesRows,recibosRows,costeosRows,cierresRows,catRows]=await Promise.all([
+    DB.selectAll('clientes'),DB.selectAll('lotes'),DB.selectAll('recibos'),
+    DB.selectAll('costeos'),DB.selectAll('cierres'),DB.selectAll('catalogos')]);
+  const catMap={};catRows.forEach(r=>catMap[r.key]=r.data);
+  __adminState={
+    clientes:clientesRows.map(r=>({...r.data,id:r.id})),
+    lotes:lotesRows.map(r=>({...r.data,id:r.id,clienteId:r.cliente_id,finalizado:r.finalizado})),
+    recibos:Object.fromEntries(recibosRows.map(r=>[r.lote_id,r.data])),
+    costeos:Object.fromEntries(costeosRows.map(r=>[r.lote_id,r.data])),
+    cierres:Object.fromEntries(cierresRows.map(r=>[r.lote_id,r.data])),
+    commodities:catMap.commodities||[],commoditiesCierre:catMap.commoditiesCierre||[],
+    hoes:catMap.hoes||[],catalogoCierre:catMap.catalogoCierre||[],categorias:catMap.categorias||[],
+    itemsFuncionales:catMap.itemsFuncionales||[],refacciones:catMap.refacciones||[],
+    tiposServicio:catMap.tiposServicio||[],operadoresEOL:catMap.operadoresEOL||[],
+    operadoresARS:catMap.operadoresARS||[],inhabiles:catMap.inhabiles||[],
+    diasEOL:catMap.diasEOL||{},diasARS:catMap.diasARS||{},config:catMap.config||{}
+  };
+  __adminSnap=__clone(adminSlice(__adminState));
+}
+function getAdminState(){return __adminState;}
+// Producción modifica parte del estado admin (cierres, lotes, itemsFuncionales…).
+// Persistimos por diferencias solo lo que cambió respecto del último snapshot.
 function saveAdminState(st){
-  try{localStorage.setItem('erp_state',JSON.stringify(st));}catch(e){alert('Error al guardar.');}
+  __adminState=st;
+  __chain=__chain.then(()=>__persistAdminDiff(st)).catch(e=>{console.error(e);alert('Error al guardar (admin) en la nube: '+(e.message||e));});
+  return __chain;
+}
+async function __persistAdminDiff(st){
+  const prev=__adminSnap||{clientes:[],lotes:[],recibos:{},costeos:{},cierres:{},catalogos:{}};
+  const cur=__clone(adminSlice(st));const ops=[];
+  __diffArr(ops,'clientes',cur.clientes,prev.clientes,it=>({id:it.id,data:it}));
+  __diffArr(ops,'lotes',cur.lotes,prev.lotes,it=>({id:it.id,cliente_id:it.clienteId,finalizado:!!it.finalizado,data:it}));
+  __diffMap(ops,'recibos',cur.recibos,prev.recibos,(k,v)=>({lote_id:k,cliente_id:__adminLoteCliente(st,k),data:v}));
+  __diffMap(ops,'costeos',cur.costeos,prev.costeos,(k,v)=>({lote_id:k,data:v}));
+  __diffMap(ops,'cierres',cur.cierres,prev.cierres,(k,v)=>({lote_id:k,cliente_id:__adminLoteCliente(st,k),data:v}));
+  for(const key of ADMIN_CATALOGS){if(!__eq(cur.catalogos[key],prev.catalogos[key]))ops.push(['u','catalogos',{key,data:cur.catalogos[key]}]);}
+  for(const op of ops){if(op[0]==='u')await DB.upsert(op[1],op[2]);else await DB.remove(op[1],op[2],op[3]);}
+  __adminSnap=cur;
 }
 
 // Produccion state is stored separately
@@ -815,24 +872,52 @@ let pState={
   salesOrders:[],    // [{id,num,compradorId,fecha,tipo:'loads'|'assets',items,monto}]
   compradores:[],    // [{id,nombre,contacto,email,tel}]
 };
-let pNextId={s:1,d:1,ld:1,a:1,ls:1,so:1,cp:1};
-
-function loadPState(){
-  try{const r=localStorage.getItem('erp_prod_state');if(r){const d=JSON.parse(r);pState={...pState,...d};pNextId=d.nextId||pNextId;}}catch(e){}
+// ── ESTADO DE PRODUCCIÓN (Supabase, por diferencias) ──
+let pSnap=null,pChain=Promise.resolve();
+function pSlice(){return{sortings:pState.sortings,destructions:pState.destructions,assets:pState.assets,
+  loads:pState.loads,lotesScraps:pState.lotesScraps,salesOrders:pState.salesOrders,compradores:pState.compradores};}
+function __pLoteCliente(loteId){const st=__adminState;const l=st&&(st.lotes||[]).find(x=>x.id===loteId);return l?l.clienteId:null;}
+async function loadPState(){
+  const [sortingsR,destrR,assetsR,loadsR,scrapsR,soR,compR]=await Promise.all([
+    DB.selectAll('sortings'),DB.selectAll('destructions'),DB.selectAll('assets'),
+    DB.selectAll('loads'),DB.selectAll('lotes_scraps'),DB.selectAll('sales_orders'),DB.selectAll('compradores')]);
+  pState={
+    sortings:sortingsR.map(r=>({...r.data,id:r.id,loteId:r.lote_id})),
+    destructions:destrR.map(r=>({...r.data,id:r.id,loteId:r.lote_id})),
+    assets:assetsR.map(r=>({...r.data,id:r.id,loteId:r.lote_id})),
+    loads:loadsR.map(r=>({...r.data,id:r.id})),
+    lotesScraps:scrapsR.map(r=>({...r.data,id:r.id})),
+    salesOrders:soR.map(r=>({...r.data,id:r.id})),
+    compradores:compR.map(r=>({...r.data,id:r.id}))
+  };
+  pSnap=__clone(pSlice());
 }
 function savePState(){
-  try{localStorage.setItem('erp_prod_state',JSON.stringify({...pState,nextId:pNextId}));}catch(e){alert('Error al guardar.');}
+  pChain=pChain.then(__persistPDiff).catch(e=>{console.error(e);alert('Error al guardar en la nube: '+(e.message||e));});
+  return pChain;
 }
-function puid(p){if(!pNextId[p])pNextId[p]=1;return p+(pNextId[p]++);}
+async function __persistPDiff(){
+  const prev=pSnap||{sortings:[],destructions:[],assets:[],loads:[],lotesScraps:[],salesOrders:[],compradores:[]};
+  const cur=__clone(pSlice());const ops=[];
+  __diffArr(ops,'sortings',cur.sortings,prev.sortings,it=>({id:it.id,lote_id:it.loteId,data:it}));
+  __diffArr(ops,'destructions',cur.destructions,prev.destructions,it=>({id:it.id,lote_id:it.loteId,data:it}));
+  __diffArr(ops,'assets',cur.assets,prev.assets,it=>({id:it.id,lote_id:it.loteId,cliente_id:__pLoteCliente(it.loteId),data:it}));
+  __diffArr(ops,'loads',cur.loads,prev.loads,it=>({id:it.id,data:it}));
+  __diffArr(ops,'lotes_scraps',cur.lotesScraps,prev.lotesScraps,it=>({id:it.id,data:it}));
+  __diffArr(ops,'sales_orders',cur.salesOrders,prev.salesOrders,it=>({id:it.id,data:it}));
+  __diffArr(ops,'compradores',cur.compradores,prev.compradores,it=>({id:it.id,data:it}));
+  for(const op of ops){if(op[0]==='u')await DB.upsert(op[1],op[2]);else await DB.remove(op[1],op[2],op[3]);}
+  pSnap=cur;
+}
 
 // ── AUTH ─────────────────────────────────────────────────
-function checkAuth(){
-  const u=localStorage.getItem('erp_session');
-  if(!u){window.location.href='index.html';return;}
-  const sess=JSON.parse(u);
-  document.getElementById('user-name').textContent=sess.nombre||sess.username;
+async function checkAuth(){
+  const s=await DB.getSession();
+  if(!s||!['admin','operador'].includes(s.profile.role)){window.location.href='index.html';return false;}
+  document.getElementById('user-name').textContent=s.profile.nombre||s.user.email||'';
+  return true;
 }
-function logout(){localStorage.removeItem('erp_session');window.location.href='index.html';}
+async function logout(){await DB.logout();window.location.href='index.html';}
 
 // ── NAVIGATION ────────────────────────────────────────────
 function showPage(id){
@@ -945,7 +1030,7 @@ function updateSortingTotal(){
   });
   document.getElementById('sorting-total').textContent=`Total este sorting: ${totalPz} piezas · ${totalKg.toFixed(2)} kg`;
 }
-function saveSorting(){
+async function saveSorting(){
   const id=document.getElementById('sorting-edit-id').value;
   const loteId=document.getElementById('sorting-lote').value;
   const fecha=document.getElementById('sorting-fecha').value;
@@ -960,7 +1045,7 @@ function saveSorting(){
     };
   }).filter(x=>x.kg>0||x.piezas>0);
   if(!items.length){alert('Agrega al menos una categoría con kg o piezas.');return;}
-  const obj={id:id||puid('s'),loteId,fecha,items,finalizado:false};
+  const obj={id:id||await DB.nextId('s'),loteId,fecha,items,finalizado:false};
   if(id){const i=pState.sortings.findIndex(x=>x.id===id);if(i>=0)pState.sortings[i]=obj;}
   else pState.sortings.push(obj);
   savePState();closeModal('modal-sorting');renderSortings();
@@ -1112,14 +1197,14 @@ function addDestRow(commId='',kg=''){
     <button class="btn small danger" onclick="this.parentElement.remove()">✕</button>`;
   document.getElementById('dest-rows').appendChild(row);
 }
-function saveDestruction(){
+async function saveDestruction(){
   const id=document.getElementById('dest-edit-id').value;
   const loteId=document.getElementById('dest-lote').value;const fecha=document.getElementById('dest-fecha').value;
   if(!loteId||!fecha){alert('Completa lote y fecha.');return;}
   const rows=document.querySelectorAll('#dest-rows .sorting-row');
   const items=Array.from(rows).map(r=>({commodityId:r.querySelector('select').value,kg:parseFloat(r.querySelector('input').value)||0})).filter(x=>x.kg>0);
   if(!items.length){alert('Agrega commodities.');return;}
-  const obj={id:id||puid('d'),loteId,fecha,items};
+  const obj={id:id||await DB.nextId('d'),loteId,fecha,items};
   if(id){const i=pState.destructions.findIndex(x=>x.id===id);if(i>=0)pState.destructions[i]=obj;}else pState.destructions.push(obj);
   savePState();closeModal('modal-destruction');renderDestructions();
 }
@@ -1158,14 +1243,15 @@ function updateLoadValor(){
   if(comm&&peso>0){const vs=comm.tipo==='disposicion'?-1:1;document.getElementById('load-valor-preview').textContent=`Valor estimado: $${(vs*comm.valor*peso).toFixed(2)}`;}
   else document.getElementById('load-valor-preview').textContent='';
 }
-function saveLoad(){
+async function saveLoad(){
   const id=document.getElementById('load-edit-id').value;
   const commodityId=document.getElementById('load-commodity').value;
   const peso=parseFloat(document.getElementById('load-peso').value)||0;
   const fecha=document.getElementById('load-fecha').value;
   if(!commodityId||!peso||!fecha){alert('Completa todos los campos.');return;}
-  const num=id?(pState.loads.find(x=>x.id===id)||{}).num||pNextId.ld:pNextId.ld;
-  const obj={id:id||puid('ld'),num,commodityId,peso,fecha,estado:'disponible',pesoVendido:0};
+  // Folio visible secuencial atómico (solo en alta; en edición se conserva)
+  const num=id?(pState.loads.find(x=>x.id===id)||{}).num:await DB.nextNum('load');
+  const obj={id:id||await DB.nextId('ld'),num,commodityId,peso,fecha,estado:'disponible',pesoVendido:0};
   if(id){const i=pState.loads.findIndex(x=>x.id===id);if(i>=0)pState.loads[i]={...pState.loads[i],...obj};}else pState.loads.push(obj);
   savePState();closeModal('modal-load');renderLoads();
 }
@@ -1750,9 +1836,8 @@ function openModalAsset(id){
   document.getElementById('asset-lote').innerHTML=lotes.map(l=>`<option value="${l.id}">${l.nombre}</option>`).join('');
   const cats=getAdminCatARS();
   document.getElementById('asset-categoria').innerHTML=cats.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join('');
-  // Set asset number preview
-  const nextNum=id?(pState.assets.find(x=>x.id===id)||{}).num||pNextId.a:pNextId.a;
-  document.getElementById('asset-num-display').value=`A-${String(nextNum).padStart(7,'0')}`;
+  // Set asset number preview (el folio definitivo se asigna al guardar)
+  document.getElementById('asset-num-display').value=id?`A-${String((pState.assets.find(x=>x.id===id)||{}).num).padStart(7,'0')}`:'A-(automático)';
   clearAssetForm();
   onAssetCategoriaChange();
   if(id){const a=pState.assets.find(x=>x.id===id);if(a)fillAssetForm(a);}
@@ -1927,7 +2012,7 @@ function catalogSig(valuesOrItem,key,fromItem){
 // Precrea (si no existe) un item en el catálogo ERP con las specs del asset
 // actual, precio en blanco y estatus "Pendiente de asignar precio". Dedup por
 // categoría + combinación de campos del tipo. Solo se usa cuando no hubo match.
-function ensurePendingCatalogItem(){
+async function ensurePendingCatalogItem(){
   const spec=readAssetFormSpecs();
   const v=spec.values;
   const marca=(v.marca||'').trim();
@@ -1936,7 +2021,7 @@ function ensurePendingCatalogItem(){
   const st=getAdminState();if(!st)return;
   st.itemsFuncionales=st.itemsFuncionales||[];
   const nuevo={
-    id:'itfp_'+Date.now()+'_'+Math.floor(Math.random()*1000),
+    id:await DB.nextId('itf'),
     marca,modelo,catId:spec.catId,tipoServicioId:'',
     procesador:('cpu'in v)?String(v.cpu||'').trim():'',
     ram:('ram'in v)?parseGB(v.ram):0,
@@ -1951,7 +2036,6 @@ function ensurePendingCatalogItem(){
   const existe=st.itemsFuncionales.some(it=>normTxt(it.catId)===normTxt(spec.catId)&&catalogSig(it,assetSchemaKeyFor(catNameById(it.catId)),true)===sig);
   if(existe)return;
   st.itemsFuncionales.push(nuevo);
-  if(st.nextId&&typeof st.nextId.itf==='number')st.nextId.itf++;
   saveAdminState(st);
 }
 // Etiquetas legibles de los campos para los mensajes del modal.
@@ -1995,7 +2079,7 @@ function readDiagFromForm(){
   return diag;
 }
 
-function saveAsset(){
+async function saveAsset(){
   const id=document.getElementById('asset-edit-id').value;
   const loteId=document.getElementById('asset-lote').value;
   const catId=document.getElementById('asset-categoria').value;
@@ -2007,7 +2091,8 @@ function saveAsset(){
   const matchCat=findCatalogMatch(readAssetFormSpecs());
   const precio=matchCat?matchCat.precio:0;
   const destino=document.getElementById('asset-destino').value;
-  const num=id?(pState.assets.find(x=>x.id===id)||{}).num||pNextId.a:pNextId.a;
+  // Folio visible secuencial atómico (solo en alta; en edición se conserva)
+  const num=id?(pState.assets.find(x=>x.id===id)||{}).num:await DB.nextNum('asset');
   const batPct=document.getElementById('asset-bat-pct').value;
   // Cosmético
   const cosmetico={
@@ -2036,7 +2121,7 @@ function saveAsset(){
     passwordProtegido:document.getElementById('func-password').checked
   };
   const obj={
-    id:id||puid('a'),num,loteId,catId,
+    id:id||await DB.nextId('a'),num,loteId,catId,
     assetCliente:document.getElementById('asset-num-cliente').value.trim(),
     serial:document.getElementById('asset-serial').value.trim(),
     marca,modelo,
@@ -2106,7 +2191,7 @@ function saveAsset(){
   if(id){const i=pState.assets.findIndex(x=>x.id===id);if(i>=0)pState.assets[i]=finalObj;}else pState.assets.push(finalObj);
   savePState();
   // Si es Reventa y no tiene precio en catálogo, precrear el item pendiente en ERP.
-  if(!matchCat&&destino==='Reventa'&&marca&&modelo)ensurePendingCatalogItem();
+  if(!matchCat&&destino==='Reventa'&&marca&&modelo)await ensurePendingCatalogItem();
   window._diagForTemplate=null;
   const diagInfo=document.getElementById('diag-modal-info');if(diagInfo)diagInfo.remove();
   closeModal('modal-asset');renderAssets();renderScrap();
@@ -2188,11 +2273,11 @@ function openModalLoteScrap(){
   }).join('');
   openModal('modal-lote-scrap');
 }
-function crearLoteScrap(){
+async function crearLoteScrap(){
   const checkboxes=document.querySelectorAll('#scrap-disponibles input[type=checkbox]:checked');
   if(!checkboxes.length){alert('Selecciona al menos un asset.');return;}
   const assetIds=Array.from(checkboxes).map(cb=>cb.value);
-  const ls={id:puid('ls'),assetIds,fecha:TODAY,estadoEol:'pendiente'};
+  const ls={id:await DB.nextId('ls'),assetIds,fecha:TODAY,estadoEol:'pendiente'};
   pState.lotesScraps.push(ls);
   assetIds.forEach(aid=>{const i=pState.assets.findIndex(x=>x.id===aid);if(i>=0)pState.assets[i].estado='scrap_enviado';});
   savePState();closeModal('modal-lote-scrap');renderScrap();
@@ -2411,7 +2496,7 @@ function updateSoTotal(){
   } else {alertEl.innerHTML='';}
 }
 
-function saveSalesOrder(){
+async function saveSalesOrder(){
   const compradorId=document.getElementById('so-comprador').value;const fecha=document.getElementById('so-fecha').value;
   if(!compradorId||!fecha){alert('Completa comprador y fecha.');return;}
   let items=[];let monto=0;let tipo=_soTab;
@@ -2480,10 +2565,9 @@ function saveSalesOrder(){
     });
   }
   if(!items.length){alert('Agrega items a la sales order.');return;}
-  if(!pNextId.so)pNextId.so=1;
-  const num=pNextId.so;
+  // Folio visible secuencial atómico (SO-…)
+  const num=await DB.nextNum('so');
   const soId='so'+num;
-  pNextId.so++;
   pState.salesOrders.push({id:soId,num,compradorId,fecha,tipo,items,monto});
   savePState();closeModal('modal-so');renderSalesOrders();renderLoads();renderAssets();renderInvEOL();renderInvARS();
 }
@@ -2546,7 +2630,7 @@ function openModalComprador(){
   document.getElementById('modal-comprador-title').textContent='Nuevo comprador';
   openModal('modal-comprador');
 }
-function saveComprador(){
+async function saveComprador(){
   const id=document.getElementById('comp-edit-id').value;
   const nombre=document.getElementById('comp-nombre').value.trim();if(!nombre){alert('Ingresa nombre.');return;}
   const fiscal={
@@ -2563,7 +2647,7 @@ function saveComprador(){
     if(!confirm(`El CP "${fiscal.cp}" no parece válido (debe ser 5 dígitos). ¿Guardar de todos modos?`))return;
   }
   const obj={
-    id:id||puid('cp'),nombre,
+    id:id||await DB.nextId('cp'),nombre,
     contacto:document.getElementById('comp-contacto').value.trim(),
     email:document.getElementById('comp-email').value.trim(),
     tel:document.getElementById('comp-tel').value.trim(),
@@ -3458,26 +3542,26 @@ function renderCurrentPageProd(){
   else if(id==='compradores')renderCompradores();
   else if(id==='facturacion')renderFacturacion();
 }
-// Si otra pestaña modifica erp_prod_state, recargamos pState desde disco ANTES de
-// que esta pestaña pueda volver a guardar — así no resucitamos datos que el admin
-// borró ni pisamos cambios de otra sesión. Si cambia erp_state (p. ej. el admin
-// cierra ARS o borra un lote), solo refrescamos la vista. El evento 'storage'
-// solo se dispara en las OTRAS pestañas.
-window.addEventListener('storage',function(e){
-  if(!e.key)return;
-  if(e.key==='erp_session'){ if(!e.newValue)window.location.href='index.html'; return; }
-  if(e.key==='erp_prod_state')loadPState();
-  if(e.key==='erp_prod_state'||e.key==='erp_state')renderCurrentPageProd();
-});
-
 // ── INIT ─────────────────────────────────────────────────
 document.querySelectorAll('.modal-overlay').forEach(o=>{o.addEventListener('click',e=>{if(e.target===o)closeModal(o.id);});});
-checkAuth();loadPState();
-// Initial render
-renderSortings();renderDestructions();renderLoads();
-// Check for QR diagnostic data
-_diagData=parseDiagQR();
-if(_diagData)mostrarDiagBanner(_diagData);
+(async function(){
+  if(!(await checkAuth()))return;
+  await hydrateAdminState();   // estado admin (cache)
+  await loadPState();          // estado de producción
+  // Initial render
+  renderSortings();renderDestructions();renderLoads();
+  // Check for QR diagnostic data
+  _diagData=parseDiagQR();
+  if(_diagData)mostrarDiagBanner(_diagData);
+  // Realtime: si el admin u otra sesión de producción cambian datos, recargamos
+  // admin+pState y re-renderizamos la página visible (con debounce).
+  let __rt=null;
+  DB.subscribe(['sortings','destructions','assets','loads','lotes_scraps','sales_orders','compradores',
+                'clientes','lotes','recibos','costeos','cierres','catalogos'],()=>{
+    clearTimeout(__rt);
+    __rt=setTimeout(async()=>{await hydrateAdminState();await loadPState();renderCurrentPageProd();},300);
+  });
+})();
 </script>
 </body>
 </html>
