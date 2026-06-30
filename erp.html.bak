@@ -132,8 +132,6 @@ tr:hover td{background:#fafaf8}
 .badge.estimada{background:#fde8e8;color:#c0392b;border:1px dashed #f0a0a0}
 .badge.estandar{background:#e8f0fe;color:#1a56db}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-data.js"></script>
 </head>
 <body>
 <div class="app">
@@ -989,62 +987,44 @@ let calYear={eol:new Date().getFullYear(),ars:new Date().getFullYear(),recibo:ne
 let calMonth={eol:new Date().getMonth(),ars:new Date().getMonth(),recibo:new Date().getMonth()};
 let selectedDay={eol:null,ars:null,recibo:null};
 let currentPlanTab='eol';
-// Persistencia por diferencias contra Supabase (reemplaza el contador local nextId).
-let __snap=null; // snapshot del último estado persistido
-const PERSIST_CATALOGS=['commodities','commoditiesCierre','hoes','catalogoCierre','categorias',
-  'itemsFuncionales','refacciones','tiposServicio','operadoresEOL','operadoresARS','inhabiles','config','diasEOL','diasARS'];
-function __clone(o){return JSON.parse(JSON.stringify(o));}
-function __eq(a,b){return JSON.stringify(a)===JSON.stringify(b);}
-function __snapSlice(){return{clientes:state.clientes,lotes:state.lotes,recibos:state.recibos,
-  costeos:state.costeos,cierres:state.cierres,catalogos:Object.fromEntries(PERSIST_CATALOGS.map(k=>[k,state[k]]))};}
-function __loteCliente(loteId){const l=state.lotes.find(x=>x.id===loteId);return l?l.clienteId:null;}
+let nextId={c:1,cc:1,h:1,hc:1,l:1,cl:1,cat:1,itf:1,ref:1,op:1,ts:1};
 
 // ── AUTH ──────────────────────────────────────────────────
-async function checkAuth(){
-  const s=await DB.getSession();
-  if(!s||!['admin','operador'].includes(s.profile.role)){window.location.href='index.html';return false;}
-  state.role=s.profile.role;state.user={...s.profile,id:s.user.id,email:s.user.email};
-  document.getElementById('role-badge').textContent=s.profile.role==='admin'?'Admin':'Operador';
-  document.getElementById('role-badge').className='badge '+(s.profile.role==='admin'?'info':'success');
-  document.getElementById('user-name').textContent=s.profile.nombre||s.user.email||'';
-  return true;
+function checkAuth(){
+  const u=localStorage.getItem('erp_session');
+  if(!u){window.location.href='index.html';return;}
+  const sess=JSON.parse(u);
+  state.role=sess.role;state.user=sess;
+  document.getElementById('role-badge').textContent=sess.role==='admin'?'Admin':'Operador';
+  document.getElementById('role-badge').className='badge '+(sess.role==='admin'?'info':'success');
+  document.getElementById('user-name').textContent=sess.nombre||sess.username;
 }
-async function logout(){await DB.logout();window.location.href='index.html';}
+function logout(){localStorage.removeItem('erp_session');window.location.href='index.html';}
 
-// Lee el estado desde Supabase y lo carga en memoria (con migraciones y
+// Lee el estado desde localStorage y lo carga en memoria (con migraciones y
 // normalización de arreglos). NO toca la UI ni la sesión: se reutiliza tanto en
-// el arranque como al recargar por cambios vía realtime (DB.subscribe).
-async function hydrateState(){
-  const [clientesRows,lotesRows,recibosRows,costeosRows,cierresRows,catRows]=await Promise.all([
-    DB.selectAll('clientes'),DB.selectAll('lotes'),DB.selectAll('recibos'),
-    DB.selectAll('costeos'),DB.selectAll('cierres'),DB.selectAll('catalogos')
-  ]);
-  const catMap={};catRows.forEach(r=>catMap[r.key]=r.data);
-  const d={
-    clientes:clientesRows.map(r=>({...r.data,id:r.id})),
-    lotes:lotesRows.map(r=>({...r.data,id:r.id,clienteId:r.cliente_id,finalizado:r.finalizado})),
-    recibos:Object.fromEntries(recibosRows.map(r=>[r.lote_id,r.data])),
-    costeos:Object.fromEntries(costeosRows.map(r=>[r.lote_id,r.data])),
-    cierres:Object.fromEntries(cierresRows.map(r=>[r.lote_id,r.data])),
-    commodities:catMap.commodities||[],commoditiesCierre:catMap.commoditiesCierre||[],
-    hoes:catMap.hoes||[],catalogoCierre:catMap.catalogoCierre||[],categorias:catMap.categorias||[],
-    itemsFuncionales:catMap.itemsFuncionales||[],refacciones:catMap.refacciones||[],
-    tiposServicio:catMap.tiposServicio||[],operadoresEOL:catMap.operadoresEOL||[],
-    operadoresARS:catMap.operadoresARS||[],inhabiles:catMap.inhabiles||[],
-    diasEOL:catMap.diasEOL||{},diasARS:catMap.diasARS||{},config:catMap.config
-  };
-  // ── Migrate old config (CONSERVADO) ──
-  let cfg=d.config||{};
-  if(!cfg.eol){
-    cfg={
-      eol:{sueldoDia:cfg.sueldo||cfg.operadores&&cfg.sueldo||500,gastosFijos:cfg.gastosFijos||1000},
-      ars:{sueldoDia:500,gastosFijos:500}
-    };
-  }
-  if(cfg.eol&&!cfg.eol.sueldoDia)cfg.eol.sueldoDia=cfg.eol.sueldo||500;
-  if(cfg.ars&&!cfg.ars.sueldoDia)cfg.ars.sueldoDia=cfg.ars.sueldo||500;
-  state={...state,...d,config:cfg};
-  // Ensure arrays (CONSERVADO)
+// el arranque como al recargar por cambios hechos en otra pestaña.
+function hydrateState(){
+  try{
+    const r=localStorage.getItem('erp_state');
+    if(r){
+      const d=JSON.parse(r);
+      // Migrate old config
+      let cfg=d.config||{};
+      if(!cfg.eol){
+        cfg={
+          eol:{sueldoDia:cfg.sueldo||cfg.operadores&&cfg.sueldo||500,gastosFijos:cfg.gastosFijos||1000},
+          ars:{sueldoDia:500,gastosFijos:500}
+        };
+      }
+      // Ensure sueldoDia exists (migrate from old sueldo)
+      if(cfg.eol&&!cfg.eol.sueldoDia)cfg.eol.sueldoDia=cfg.eol.sueldo||500;
+      if(cfg.ars&&!cfg.ars.sueldoDia)cfg.ars.sueldoDia=cfg.ars.sueldo||500;
+      state={...state,...d,config:cfg};
+      nextId=d.nextId||nextId;
+    }
+  }catch(e){}
+  // Ensure arrays
   ['commodities','commoditiesCierre','hoes','catalogoCierre','categorias','itemsFuncionales',
    'refacciones','lotes','operadoresEOL','operadoresARS','inhabiles','tiposServicio'].forEach(k=>{
     state[k]=state[k]||[];
@@ -1056,18 +1036,11 @@ async function hydrateState(){
   state.recibos=state.recibos||{};
   state.costeos=state.costeos||{};
   state.cierres=state.cierres||{};
-  __snap=__clone(__snapSlice()); // inicializa snapshot del estado persistido
 }
-async function loadState(){
-  if(!(await checkAuth()))return;
-  await hydrateState();
+function loadState(){
+  hydrateState();
+  checkAuth();
   renderAll();
-  // Realtime: si producción/otra pestaña cambian datos, recargamos y re-renderizamos.
-  let __rt=null;
-  DB.subscribe(['clientes','lotes','recibos','costeos','cierres','catalogos','assets','sortings'],()=>{
-    clearTimeout(__rt);
-    __rt=setTimeout(async()=>{await hydrateState();renderAll();renderActivePage();},300);
-  });
 }
 // Re-renderiza la página actualmente visible. renderAll() cubre la mayoría;
 // aquí se refrescan las que no cubre (planeación y resumen por cliente).
@@ -1077,37 +1050,25 @@ function renderActivePage(){
   if(id==='planeacion'){renderCalendar('eol');renderCalendar('ars');renderOpsPanel('eol');renderOpsPanel('ars');renderCalendarRecibo();renderProximosArribos();}
   else if(id==='clientes')renderResumenCliente();
 }
-// ── GUARDADO POR DIFERENCIAS (Supabase) ───────────────────
-// saveState() se sigue llamando igual en todos los handlers, pero por dentro
-// solo empuja a Supabase lo que cambió respecto del último snapshot persistido.
-// La sincronización entre pestañas/módulos ahora la hace DB.subscribe (ver loadState).
-let __chain=Promise.resolve();
+// ── SINCRONIZACIÓN ENTRE PESTAÑAS ─────────────────────────
+// Cuando otra pestaña (incluido el módulo de Producción) modifica erp_state,
+// recargamos el estado desde disco ANTES de que esta pestaña pueda volver a
+// guardar — así su copia en memoria nunca pisa esos cambios. El evento 'storage'
+// solo se dispara en las OTRAS pestañas, no en la que escribió. También cerramos
+// la sesión en todas las pestañas si se cierra en una.
+window.addEventListener('storage',function(e){
+  if(!e.key)return;
+  if(e.key==='erp_session'){ if(!e.newValue)window.location.href='index.html'; return; }
+  if(e.key!=='erp_state')return;
+  hydrateState();
+  renderAll();
+  renderActivePage();
+});
 function saveState(){
-  __chain=__chain.then(__persistDiff).catch(e=>{console.error(e);alert('Error al guardar en la nube: '+(e.message||e));});
-  return __chain;
+  try{localStorage.setItem('erp_state',JSON.stringify({...state,nextId}));}
+  catch(e){alert('Error al guardar. Es posible que el almacenamiento esté lleno.');}
 }
-function __diffArr(ops,table,cur,prev,rowFor){
-  const pById={};(prev||[]).forEach(x=>pById[x.id]=x);const ids=new Set();
-  cur.forEach(it=>{ids.add(it.id);const p=pById[it.id];if(!p||!__eq(p,it))ops.push(['u',table,rowFor(it)]);});
-  (prev||[]).forEach(p=>{if(!ids.has(p.id))ops.push(['r',table,'id',p.id]);});
-}
-function __diffMap(ops,table,cur,prev,rowFor){
-  cur=cur||{};prev=prev||{};
-  for(const k of Object.keys(cur)){if(!__eq(prev[k],cur[k]))ops.push(['u',table,rowFor(k,cur[k])]);}
-  for(const k of Object.keys(prev)){if(!(k in cur))ops.push(['r',table,'lote_id',k]);}
-}
-async function __persistDiff(){
-  const prev=__snap||{clientes:[],lotes:[],recibos:{},costeos:{},cierres:{},catalogos:{}};
-  const cur=__clone(__snapSlice());const ops=[];
-  __diffArr(ops,'clientes',cur.clientes,prev.clientes,it=>({id:it.id,data:it}));
-  __diffArr(ops,'lotes',cur.lotes,prev.lotes,it=>({id:it.id,cliente_id:it.clienteId,finalizado:!!it.finalizado,data:it}));
-  __diffMap(ops,'recibos',cur.recibos,prev.recibos,(k,v)=>({lote_id:k,cliente_id:__loteCliente(k),data:v}));
-  __diffMap(ops,'costeos',cur.costeos,prev.costeos,(k,v)=>({lote_id:k,data:v}));
-  __diffMap(ops,'cierres',cur.cierres,prev.cierres,(k,v)=>({lote_id:k,cliente_id:__loteCliente(k),data:v}));
-  for(const key of PERSIST_CATALOGS){if(!__eq(cur.catalogos[key],prev.catalogos[key]))ops.push(['u','catalogos',{key,data:cur.catalogos[key]}]);}
-  for(const op of ops){if(op[0]==='u')await DB.upsert(op[1],op[2]);else await DB.remove(op[1],op[2],op[3]);}
-  __snap=cur;
-}
+function uid(p){if(!nextId[p])nextId[p]=1;return p+(nextId[p]++);}
 
 // ── NAVIGATION ────────────────────────────────────────────
 function showPage(id,sec){
@@ -1305,7 +1266,7 @@ function openNewCliente(){
   openModal('modal-cliente');
 }
 
-async function saveCliente(){
+function saveCliente(){
   const id=document.getElementById('cliente-edit-id').value;
   const nombre=document.getElementById('cliente-nombre').value.trim();
   const usuario=document.getElementById('cliente-usuario').value.trim()||nombre.toLowerCase().replace(/\s+/g,'-');
@@ -1366,7 +1327,7 @@ async function saveCliente(){
       if(password)state.clientes[i].password=password;
     }
   }else{
-    state.clientes.push({id:await DB.nextId('cl'),nombre,usuario,password,email,fiscal,ubicaciones,contactos});
+    state.clientes.push({id:uid('cl'),nombre,usuario,password,email,fiscal,ubicaciones,contactos});
   }
   saveState();closeModal('modal-cliente');renderClientes();
 }
@@ -1526,15 +1487,15 @@ function openModalComm(tipo){
   }
   openModal('modal-commodity');
 }
-async function saveCommodity(){
+function saveCommodity(){
   const id=document.getElementById('comm-edit-id').value;const tipo=document.getElementById('comm-edit-tipo-modal').value;
   if(tipo==='cierre'){
     const nombre=document.getElementById('comm-cierre-nombre').value.trim();if(!nombre)return;
-    const obj={id:id||await DB.nextId('cc'),nombre,kwh:parseFloat(document.getElementById('comm-kwh').value)||0,co2:parseFloat(document.getElementById('comm-co2').value)||0,agua:parseFloat(document.getElementById('comm-agua').value)||0,petroleo:parseFloat(document.getElementById('comm-petroleo').value)||0};
+    const obj={id:id||uid('cc'),nombre,kwh:parseFloat(document.getElementById('comm-kwh').value)||0,co2:parseFloat(document.getElementById('comm-co2').value)||0,agua:parseFloat(document.getElementById('comm-agua').value)||0,petroleo:parseFloat(document.getElementById('comm-petroleo').value)||0};
     if(id){const i=state.commoditiesCierre.findIndex(c=>c.id===id);if(i>=0)state.commoditiesCierre[i]=obj;}else state.commoditiesCierre.push(obj);
   }else{
     const n=document.getElementById('comm-nombre').value.trim();if(!n)return;
-    const obj={id:id||await DB.nextId('c'),nombre:n,tipo:document.getElementById('comm-tipo').value,valor:parseFloat(document.getElementById('comm-valor').value)||0};
+    const obj={id:id||uid('c'),nombre:n,tipo:document.getElementById('comm-tipo').value,valor:parseFloat(document.getElementById('comm-valor').value)||0};
     if(id){const i=state.commodities.findIndex(c=>c.id===id);if(i>=0)state.commodities[i]=obj;}else state.commodities.push(obj);
   }
   saveState();closeModal('modal-commodity');renderCommodities();renderCommoditiesCierre();
@@ -1578,11 +1539,11 @@ function openModalCategoria(){
   document.getElementById('cat-edit-id').value='';document.getElementById('cat-nombre').value='';
   document.getElementById('modal-categoria-title').textContent='Nueva categoría ARS';openModal('modal-categoria');
 }
-async function saveCategoria(){
+function saveCategoria(){
   const id=document.getElementById('cat-edit-id').value;
   const nombre=document.getElementById('cat-nombre').value.trim();
   if(!nombre){alert('Ingresa un nombre.');return;}
-  const obj={id:id||await DB.nextId('cat'),nombre};
+  const obj={id:id||uid('cat'),nombre};
   if(id){const i=state.categorias.findIndex(x=>x.id===id);if(i>=0)state.categorias[i]=obj;}else state.categorias.push(obj);
   saveState();closeModal('modal-categoria');renderCategorias();
 }
@@ -1609,12 +1570,12 @@ function openModalTipoServicio(id){
   document.getElementById('modal-tipo-servicio-title').textContent=id?'Editar tipo de servicio':'Nuevo tipo de servicio';
   openModal('modal-tipo-servicio');
 }
-async function saveTipoServicio(){
+function saveTipoServicio(){
   const id=document.getElementById('ts-edit-id').value;
   const nombre=document.getElementById('ts-nombre').value.trim();
   const tiempo=parseFloat(document.getElementById('ts-tiempo').value)||0;
   if(!nombre||tiempo<=0){alert('Ingresa nombre y tiempo válido.');return;}
-  const obj={id:id||await DB.nextId('ts'),nombre,tiempo};
+  const obj={id:id||uid('ts'),nombre,tiempo};
   if(id){const i=state.tiposServicio.findIndex(x=>x.id===id);if(i>=0)state.tiposServicio[i]=obj;}else state.tiposServicio.push(obj);
   saveState();closeModal('modal-tipo-servicio');renderTiposServicio();
 }
@@ -1639,13 +1600,13 @@ function openModalItemFunc(){
   document.getElementById('itemf-tipo-servicio').innerHTML=(state.tiposServicio||[]).map(t=>`<option value="${t.id}">${t.nombre} (${t.tiempo} min)</option>`).join('');
   document.getElementById('modal-item-func-title').textContent='Nuevo item funcional';openModal('modal-item-func');
 }
-async function saveItemFunc(){
+function saveItemFunc(){
   const id=document.getElementById('itemf-edit-id').value;
   const marca=document.getElementById('itemf-marca').value.trim();const modelo=document.getElementById('itemf-modelo').value.trim();
   const catId=document.getElementById('itemf-categoria').value;
   if(!marca||!modelo||!catId){alert('Ingresa marca, modelo y categoría.');return;}
   const prev=id?state.itemsFuncionales.find(x=>x.id===id):null;
-  const obj={id:id||await DB.nextId('itf'),marca,modelo,catId,
+  const obj={id:id||uid('itf'),marca,modelo,catId,
     tipoServicioId:document.getElementById('itemf-tipo-servicio').value||'',
     procesador:document.getElementById('itemf-procesador').value.trim(),
     ram:parseFloat(document.getElementById('itemf-ram').value)||0,
@@ -1706,9 +1667,9 @@ function openModalRefaccion(){
   document.getElementById('ref-edit-id').value='';document.getElementById('ref-nombre').value='';document.getElementById('ref-precio').value='';
   document.getElementById('modal-refaccion-title').textContent='Nueva refacción';openModal('modal-refaccion');
 }
-async function saveRefaccion(){
+function saveRefaccion(){
   const id=document.getElementById('ref-edit-id').value;const nombre=document.getElementById('ref-nombre').value.trim();if(!nombre)return;
-  const obj={id:id||await DB.nextId('ref'),nombre,precio:parseFloat(document.getElementById('ref-precio').value)||0};
+  const obj={id:id||uid('ref'),nombre,precio:parseFloat(document.getElementById('ref-precio').value)||0};
   if(id){const i=state.refacciones.findIndex(x=>x.id===id);if(i>=0)state.refacciones[i]=obj;}else state.refacciones.push(obj);
   saveState();closeModal('modal-refaccion');renderRefacciones();
 }
@@ -1754,7 +1715,7 @@ function openNewHoe(){
   document.getElementById('hoe-comm-rows').innerHTML='';document.getElementById('modal-hoe-title').textContent='Nueva HOE';
   addCommRow();openModal('modal-hoe');
 }
-async function saveHoe(){
+function saveHoe(){
   const id=document.getElementById('hoe-edit-id').value;
   const modelo=document.getElementById('hoe-modelo').value.trim();if(!modelo){alert('Ingresa descripción.');return;}
   const tiempo=parseFloat(document.getElementById('hoe-tiempo').value)||0;const peso=parseFloat(document.getElementById('hoe-peso').value)||0;
@@ -1771,7 +1732,7 @@ async function saveHoe(){
   // Solo las específicas en modo "estimado" no avanzan lastConfirmed — esas lo marcan al confirmar.
   let lastConfirmed=existing.lastConfirmed||null;
   if(!esEstimado)lastConfirmed=TODAY;
-  const hoe={id:id||await DB.nextId('h'),modelo,tiempo,peso,tipo,catId,esEstimado,commodities:comms,lastConfirmed};
+  const hoe={id:id||uid('h'),modelo,tiempo,peso,tipo,catId,esEstimado,commodities:comms,lastConfirmed};
   if(id){const i=state.hoes.findIndex(h=>h.id===id);if(i>=0)state.hoes[i]=hoe;}else state.hoes.push(hoe);
   saveState();closeModal('modal-hoe');renderHoes();
 }
@@ -1844,7 +1805,7 @@ function openNewCatalogoCierre(){
   document.getElementById('modal-catalogo-cierre-title').textContent='Nueva categoría de cierre';
   addCcRow();openModal('modal-catalogo-cierre');
 }
-async function saveCatalogoCierre(){
+function saveCatalogoCierre(){
   const id=document.getElementById('cc-edit-id').value;const nombre=document.getElementById('cc-nombre').value.trim();if(!nombre){alert('Ingresa nombre.');return;}
   const rowEls=document.querySelectorAll('#cc-comm-rows .commodity-row');if(!rowEls.length){alert('Agrega commodities.');return;}
   const comms=[];
@@ -1852,7 +1813,7 @@ async function saveCatalogoCierre(){
   if(!comms.length){alert('Agrega al menos un commodity con porcentaje.');return;}
   const sum=comms.reduce((a,c)=>a+c.pct,0);
   if(Math.abs(sum-100)>0.5){alert('Porcentajes deben sumar 100% (actual: '+sum.toFixed(1)+'%)');return;}
-  const obj={id:id||await DB.nextId('hc'),nombre,commodities:comms};
+  const obj={id:id||uid('hc'),nombre,commodities:comms};
   if(id){const i=state.catalogoCierre.findIndex(x=>x.id===id);if(i>=0)state.catalogoCierre[i]=obj;}else state.catalogoCierre.push(obj);
   saveState();closeModal('modal-catalogo-cierre');renderCatalogoCierre();
 }
@@ -1966,7 +1927,7 @@ function setLoteBorradoSeleccion(valores){
 function openNewLote(){
   if(!state.clientes.length){alert('Primero crea al menos un cliente.');return;}
   document.getElementById('lote-edit-id').value='';
-  document.getElementById('lote-nombre').value='(automático)'; // el folio se asigna al guardar
+  document.getElementById('lote-nombre').value=String(nextId.l).padStart(5,'0');
   document.getElementById('lote-arribo').value='';
   document.getElementById('lote-dias-entrega').value='45';
   document.getElementById('lote-item-rows').innerHTML='';document.getElementById('lote-ars-rows').innerHTML='';document.getElementById('lote-ref-rows').innerHTML='';
@@ -1984,8 +1945,9 @@ function openNewLote(){
   openModal('modal-lote');
 }
 
-async function saveLote(){
+function saveLote(){
   const id=document.getElementById('lote-edit-id').value;
+  const nombre=id?document.getElementById('lote-nombre').value.trim():String(nextId.l).padStart(5,'0');
   const fechaArribo=document.getElementById('lote-arribo').value;
   const diasEntrega=parseInt(document.getElementById('lote-dias-entrega').value);
   const clienteId=document.getElementById('lote-cliente').value;
@@ -2006,11 +1968,8 @@ async function saveLote(){
   const existing=id?(state.lotes.find(l=>l.id===id)||{}):{};
   const notas=(document.getElementById('lote-notas').value||'').trim();
   const instrucciones={tipoLote,tipoInventario:invTipo,serviciosBorrado,evidenciaFotografica:evidencia,notas};
-  // Consumir folio/id atómicos SOLO tras pasar todas las validaciones (no quemar números en errores)
-  const nombre=id?document.getElementById('lote-nombre').value.trim():String(await DB.nextNum('lote')).padStart(5,'0');
-  const nuevoId=id||await DB.nextId('l');
   const lote={
-    id:nuevoId,nombre,fechaArribo,clienteId,ubicacionId,diasEntrega,
+    id:id||uid('l'),nombre,fechaArribo,clienteId,ubicacionId,diasEntrega,
     deadline:existing.deadline||null, // null hasta que se registre el recibo
     items,itemsARS,refacciones,...calc,
     tiempoARSTotal:arsCalc.tiempoARSTotal,valorARSTotal:arsCalc.valorARSTotal,
@@ -2074,7 +2033,7 @@ function editLote(id){
   });
   updateLotePreview();openModal('modal-lote');
 }
-async function deleteLote(id){
+function deleteLote(id){
   if(!confirm('¿Eliminar este lote? Se borrarán también todos sus datos asociados (recibo, cierre, costeo, planeación, sortings, assets, sales orders relacionadas).'))return;
   // 1. Quitar del array de lotes
   state.lotes=state.lotes.filter(l=>l.id!==id);
@@ -2092,31 +2051,36 @@ async function deleteLote(id){
   if(state.cierres)delete state.cierres[id];
   if(state.costeos)delete state.costeos[id];
   if(state.recibos)delete state.recibos[id];
-  // 4. Cascada en el módulo de producción, ahora contra las tablas de Supabase
+  // 4. Limpiar datos del módulo de producción (otra entrada de localStorage)
   try{
-    const [assetsRows,scrapsRows,soRows]=await Promise.all([
-      DB.selectAll('assets',{lote_id:id}),DB.selectAll('lotes_scraps'),DB.selectAll('sales_orders')
-    ]);
-    const assetIdsBorrados=new Set(assetsRows.map(a=>a.id));
-    // sortings, destructions y assets del lote
-    await DB.remove('assets','lote_id',id);
-    await DB.remove('sortings','lote_id',id);
-    await DB.remove('destructions','lote_id',id);
-    // lotesScraps: quitar assetIds borrados; si queda vacío, eliminar la fila
-    for(const r of scrapsRows){
-      const ls=r.data;const assetIds=(ls.assetIds||[]).filter(aid=>!assetIdsBorrados.has(aid));
-      if(assetIds.length===0)await DB.remove('lotes_scraps','id',r.id);
-      else if(assetIds.length!==(ls.assetIds||[]).length)await DB.upsert('lotes_scraps',{id:r.id,data:{...ls,assetIds}});
+    const raw=localStorage.getItem('erp_prod_state');
+    if(raw){
+      const ps=JSON.parse(raw);
+      // sortings, destructions y assets del lote
+      if(Array.isArray(ps.sortings))ps.sortings=ps.sortings.filter(s=>s.loteId!==id);
+      if(Array.isArray(ps.destructions))ps.destructions=ps.destructions.filter(d=>d.loteId!==id);
+      const assetIdsBorrados=new Set();
+      if(Array.isArray(ps.assets)){
+        ps.assets.filter(a=>a.loteId===id).forEach(a=>assetIdsBorrados.add(a.id));
+        ps.assets=ps.assets.filter(a=>a.loteId!==id);
+      }
+      // lotesScraps: quitar assetIds borrados; si queda vacío, quitar el lote scrap
+      if(Array.isArray(ps.lotesScraps)){
+        ps.lotesScraps=ps.lotesScraps.map(ls=>({...ls,assetIds:(ls.assetIds||[]).filter(aid=>!assetIdsBorrados.has(aid))})).filter(ls=>ls.assetIds.length>0);
+      }
+      // salesOrders: quitar items que referencian assets borrados; recalcular monto.
+      // Si una SO queda sin items, eliminarla.
+      if(Array.isArray(ps.salesOrders)){
+        ps.salesOrders=ps.salesOrders.map(so=>{
+          if(so.tipo!=='assets')return so;
+          const items=(so.items||[]).filter(it=>!assetIdsBorrados.has(it.assetId));
+          const monto=items.reduce((a,it)=>a+(it.precio||0),0);
+          return{...so,items,monto};
+        }).filter(so=>(so.items||[]).length>0);
+      }
+      localStorage.setItem('erp_prod_state',JSON.stringify(ps));
     }
-    // salesOrders: quitar items que referencian assets borrados; recalcular monto; si queda vacía, eliminarla
-    for(const r of soRows){
-      const so=r.data;if(so.tipo!=='assets')continue;
-      const items=(so.items||[]).filter(it=>!assetIdsBorrados.has(it.assetId));
-      if(items.length===(so.items||[]).length)continue;
-      if(items.length===0)await DB.remove('sales_orders','id',r.id);
-      else await DB.upsert('sales_orders',{id:r.id,data:{...so,items,monto:items.reduce((a,it)=>a+(it.precio||0),0)}});
-    }
-  }catch(e){console.warn('No se pudo limpiar producción',e);}
+  }catch(e){console.warn('No se pudo limpiar erp_prod_state',e);}
   saveState();renderLotes();
 }
 function viewLote(id){
@@ -2227,7 +2191,7 @@ function openCierre(loteId){
   else addCierreRow();
   openModal('modal-cierre');
 }
-async function finalizarLote(){
+function finalizarLote(){
   const loteId=document.getElementById('cierre-lote-id').value;
   const rows=document.querySelectorAll('#cierre-rows .row');if(!rows.length){alert('Agrega items.');return;}
   const items=Array.from(rows).map(r=>{const inputs=r.querySelectorAll('input[type=number]');return{catId:r.querySelector('select').value,piezas:parseInt(inputs[0].value)||0,kg:parseFloat(inputs[1].value)||0};}).filter(x=>x.catId);
@@ -2237,7 +2201,7 @@ async function finalizarLote(){
   if(li>=0){
     state.lotes[li].finalizado=true;
     // Snapshot para facturación final: congela costeo + sortings reales + assets reales
-    state.lotes[li].facturaSnapshot=await buildFacturaSnapshot(loteId);
+    state.lotes[li].facturaSnapshot=buildFacturaSnapshot(loteId);
   }
   // Remove all future planning
   const futureDays=d=>d>TODAY;
@@ -2249,13 +2213,13 @@ async function finalizarLote(){
 }
 
 // Construye el snapshot que congela todos los datos necesarios para la factura final.
-// Lee sortings y assets de producción desde sus tablas (filtrando por lote_id).
-async function buildFacturaSnapshot(loteId){
+// Lee pState (producción) desde su localStorage namespace (escrito por produccion.html).
+function buildFacturaSnapshot(loteId){
   const lote=state.lotes.find(l=>l.id===loteId);if(!lote)return null;
-  let sR=[],aR=[];
-  try{[sR,aR]=await Promise.all([DB.selectAll('sortings',{lote_id:loteId}),DB.selectAll('assets',{lote_id:loteId})]);}catch(e){console.warn(e);}
-  const sortingsLote=sR.map(r=>r.data).map(s=>({fecha:s.fecha,items:(s.items||[]).map(it=>({catCierreId:it.catCierreId,kg:it.kg||0,piezas:it.piezas||0}))}));
-  const assetsLote=aR.map(r=>r.data).map(a=>({
+  let pState={sortings:[],assets:[]};
+  try{const r=localStorage.getItem('erp_prod_state');if(r)pState={...pState,...JSON.parse(r)};}catch(e){}
+  const sortingsLote=(pState.sortings||[]).filter(s=>s.loteId===loteId).map(s=>({fecha:s.fecha,items:(s.items||[]).map(it=>({catCierreId:it.catCierreId,kg:it.kg||0,piezas:it.piezas||0}))}));
+  const assetsLote=(pState.assets||[]).filter(a=>a.loteId===loteId).map(a=>({
     id:a.id,catId:a.catId,marca:(a.marca||'').trim(),modelo:(a.modelo||'').trim(),
     destino:a.destino,precio:parseFloat(a.precio)||0,pesoNeto:parseFloat(a.pesoNeto)||0
   }));
@@ -2315,13 +2279,13 @@ function openModalOperador(area){
   document.getElementById('modal-operador-title').textContent=`Nuevo operador ${area.toUpperCase()}`;
   openModal('modal-operador');
 }
-async function saveOperador(){
+function saveOperador(){
   const id=document.getElementById('op-edit-id').value;
   const nombre=document.getElementById('op-nombre').value.trim();
   const area=document.getElementById('op-area').value;
   if(!nombre){alert('Ingresa un nombre.');return;}
   const lista=area==='eol'?state.operadoresEOL:state.operadoresARS;
-  const obj={id:id||await DB.nextId('op'),nombre,activo:true};
+  const obj={id:id||uid('op'),nombre,activo:true};
   if(id){const i=lista.findIndex(x=>x.id===id);if(i>=0)lista[i]={...lista[i],nombre};}
   else lista.push(obj);
   saveState();closeModal('modal-operador');renderOpsPanel(area);
@@ -3619,7 +3583,7 @@ function renderDashboard(){
 
 // ── EXPORT / IMPORT ───────────────────────────────────────
 function exportarDatos(){
-  const data={...state,exportado:new Date().toISOString(),version:'4.0'};
+  const data={...state,nextId,exportado:new Date().toISOString(),version:'4.0'};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob);const a=document.createElement('a');
   a.href=url;a.download=`erp_backup_${TODAY}.json`;a.click();URL.revokeObjectURL(url);
@@ -3646,6 +3610,7 @@ function importarDatos(){
         diasEOL:d.diasEOL||{},diasARS:d.diasARS||{},
         recibos:d.recibos||{},
         inhabiles:d.inhabiles||[],config:cfg,costeos:d.costeos||{},cierres:d.cierres||{}};
+      nextId=d.nextId||{c:1,cc:1,h:1,hc:1,l:1,cl:1,cat:1,itf:1,ref:1,op:1,ts:1};
       saveState();renderAll();
       document.getElementById('import-preview').innerHTML=`<div class="alert success">Importado: ${state.lotes.length} lotes, ${state.clientes.length} clientes, ${state.operadoresEOL.length} ops EOL, ${state.operadoresARS.length} ops ARS.</div>`;
     }catch(err){alert('Error al leer el archivo. '+err);}
